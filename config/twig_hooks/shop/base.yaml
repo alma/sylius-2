@@ -1,0 +1,6 @@
+sylius_twig_hooks:
+    hooks:
+        'sylius_shop.base#stylesheets':
+            alma_stylesheets:
+                template: '@AlmaSyliusPlugin/Shop/shared/stylesheets.html.twig'
+                priority: 0

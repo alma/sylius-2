@@ -1,0 +1,135 @@
+services:
+    _defaults:
+        autowire: true
+        autoconfigure: true
+        public: false
+
+    Alma\Sylius\Controller\:
+        resource: '../src/Controller/'
+        public: true
+        tags: ['controller.service_arguments']
+
+    Alma\Sylius\Form\Type\:
+        resource: '../src/Form/Type/'
+
+    Alma\Sylius\Form\Extension\:
+        resource: '../src/Form/Extension/'
+
+    Alma\Sylius\Twig\:
+        resource: '../src/Twig/'
+
+    Alma\Sylius\Checkout\FeePlanGrouper: ~
+
+    Alma\Sylius\ProductWidget\:
+        resource: '../src/ProductWidget/'
+
+    Alma\Sylius\Api\:
+        resource: '../src/Api/'
+
+    Alma\Sylius\Api\MerchantEndpointFactoryInterface: '@Alma\Sylius\Api\MerchantEndpointFactory'
+
+    Alma\Sylius\Api\EligibilityEndpointFactoryInterface: '@Alma\Sylius\Api\EligibilityEndpointFactory'
+
+    Alma\Sylius\Api\PaymentEndpointFactoryInterface: '@Alma\Sylius\Api\PaymentEndpointFactory'
+
+    Alma\Sylius\Payment\:
+        resource: '../src/Payment/'
+
+    # Payum gateway factory builder for the `alma` factory. Without this,
+    # Payum's registry doesn't know how to build a gateway with name `alma`
+    # and throws "Gateway 'almafr' does not exist." at place-order time.
+    alma_sylius.payum.gateway_factory_builder:
+        class: Payum\Core\Bridge\Symfony\Builder\GatewayFactoryBuilder
+        arguments:
+            - Alma\Sylius\Payment\AlmaPayumGatewayFactory
+        tags:
+            - { name: payum.gateway_factory_builder, factory: alma }
+
+    Alma\Sylius\Payment\Action\AlmaCaptureAction:
+        public: true
+        tags:
+            - { name: payum.action, factory: alma, alias: alma_sylius.capture }
+
+    # Sylius 2 PaymentRequest command provider for the `alma` gateway factory.
+    # Mirrors the offline pattern : base ActionsCommandProvider tagged for the
+    # factory, decorated by PayumActionsCommandProvider which routes capture
+    # to a Payum CapturePaymentRequest message → TokenPaymentRequestHandler
+    # → our AlmaCaptureAction.
+    alma_sylius.command_provider.payment_request.alma:
+        class: Sylius\Bundle\PaymentBundle\CommandProvider\ActionsCommandProvider
+        arguments:
+            - !tagged_locator
+                tag: alma_sylius.command_provider.payment_request.alma
+                index_by: action
+        tags:
+            # `gateway_factory` (underscore) — Symfony XML normalises hyphens to
+            # underscores when reading the offline registration, but YAML keys
+            # are taken as-is. The locator's index-by is `gateway_factory`.
+            - { name: sylius.payment_request.command_provider, gateway_factory: alma }
+
+    alma_sylius.command_provider.payment_request.alma.payum:
+        class: Sylius\Bundle\PayumBundle\PaymentRequest\CommandProvider\PayumActionsCommandProvider
+        decorates: alma_sylius.command_provider.payment_request.alma
+        arguments:
+            - '@.inner'
+            - !tagged_locator
+                tag: alma_sylius.command_provider.payment_request.alma.payum
+                index_by: action
+
+    alma_sylius.command_provider.payment_request.alma.payum.capture:
+        class: Sylius\Bundle\PayumBundle\PaymentRequest\CommandProvider\CaptureCommandProvider
+        tags:
+            - { name: alma_sylius.command_provider.payment_request.alma.payum, action: capture }
+
+    Alma\Sylius\Resolver\:
+        resource: '../src/Resolver/'
+
+    Alma\Sylius\Resolver\AlmaPaymentMethodResolver:
+        arguments:
+            $paymentMethodRepository: '@sylius.repository.payment_method'
+
+    Alma\Sylius\Resolver\AlmaEligibilityPaymentMethodsResolver:
+        decorates: sylius.resolver.payment_methods
+        arguments:
+            $decorated: '@.inner'
+
+    Alma\Sylius\Eligibility\:
+        resource: '../src/Eligibility/'
+
+    Alma\Sylius\Cache\:
+        resource: '../src/Cache/'
+
+    Alma\Sylius\Form\Type\AlmaGatewayConfigurationType:
+        tags:
+            - { name: sylius.gateway_configuration_type, type: alma, label: alma_sylius.gateway.label }
+
+    Alma\Sylius\Repository\AlmaPaymentReferenceRepository:
+        tags: [doctrine.repository_service]
+
+    Alma\Sylius\Security\ApiKeyCipher:
+        arguments:
+            $appSecret: '%kernel.secret%'
+
+    Alma\Sylius\EventListener\AlmaGatewayConfigCryptoListener:
+        tags:
+            - { name: doctrine.event_listener, event: postLoad }
+            - { name: doctrine.event_listener, event: prePersist }
+            - { name: doctrine.event_listener, event: preUpdate }
+            - { name: doctrine.event_listener, event: postPersist }
+            - { name: doctrine.event_listener, event: postUpdate }
+
+    Alma\Sylius\EventListener\AlmaPaymentRefundListener:
+        tags:
+            - { name: kernel.event_listener, event: 'workflow.sylius_payment.transition.refund' }
+
+    Alma\Sylius\Validator\Constraint\UniqueAlmaPaymentMethodValidator:
+        arguments:
+            $paymentMethodRepository: '@sylius.repository.payment_method'
+        tags:
+            - { name: validator.constraint_validator }
+
+    Alma\Sylius\Twig\AlmaPaymentGatewaysDecorator:
+        decorates: sylius_admin.twig.extension.payment_method
+        arguments:
+            $inner: '@.inner'
+            $paymentMethodRepository: '@sylius.repository.payment_method'

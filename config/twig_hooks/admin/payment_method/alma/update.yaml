@@ -1,0 +1,6 @@
+sylius_twig_hooks:
+    hooks:
+        'sylius_admin.payment_method.update.content.form.sections.gateway_configuration.alma':
+            content:
+                template: '@AlmaSyliusPlugin/Admin/payment_method/form/sections/gateway_configuration/alma.html.twig'
+                priority: 0

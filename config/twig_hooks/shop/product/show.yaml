@@ -1,0 +1,6 @@
+sylius_twig_hooks:
+    hooks:
+        'sylius_shop.product.show.content.info.summary':
+            alma_widget:
+                template: '@AlmaSyliusPlugin/Shop/product/widget.html.twig'
+                priority: 150

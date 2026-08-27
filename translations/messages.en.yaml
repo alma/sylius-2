@@ -1,0 +1,57 @@
+alma_sylius:
+    form:
+        configuration:
+            section_title: API configuration
+            api_key_live: Live API key
+            api_key_test: Test API key
+            api_mode: API mode
+            merchant_id: Merchant identifier
+            product_widget_enabled: Display the Alma widget on the product page
+            mode:
+                live: Live
+                test: Test
+        error:
+            api_key_invalid: This API key is invalid or unreachable.
+            merchant_cannot_create_payments: This account is not allowed to create payments.
+            cross_keys_merchant_mismatch: Test and Live keys must belong to the same Alma account.
+    fee_plan:
+        section_title: Payment plans
+        empty_state: Configure a key to display the plans.
+        column:
+            label: Label
+            enabled: Enabled
+            api_min: Alma min
+            override_min: Min override
+            override_max: Max override
+            api_max: Alma max
+        label:
+            installments: "%n%× payment"
+            deferred_days: "Pay+%n%D"
+            deferred_months: "Pay+%n%M"
+        warning:
+            range_clamped: "Override for plan %plan% was out of the API range, clamped to %value%."
+    gateway:
+        label: Alma
+    checkout:
+        customer_fee: Customer fee
+        no_customer_fee: Free of charge
+        groups_aria_label: Alma payment options
+        group:
+            pay_now:
+                title: Pay by credit card
+                subtitle: Fast and secure payment by credit card
+            installments:
+                title: Pay in installments
+            deferred:
+                title: Pay later
+            credit:
+                title: Spread your payment
+        button:
+            installments: "%count%x"
+            deferred_days: "+%count%d"
+            deferred_months: "+%count% month|+%count% months"
+            installments_deferred_days: "%installments%x +%days%d"
+            installments_deferred_months: "%installments%x +%count% month|%installments%x +%count% months"
+        schedule:
+            today: Today
+            total: Total

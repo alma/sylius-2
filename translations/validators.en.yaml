@@ -1,0 +1,4 @@
+alma_sylius:
+    form:
+        error:
+            payment_method_already_exists: An Alma payment method already exists. Edit the existing one instead of creating a second.

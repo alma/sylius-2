@@ -1,0 +1,9 @@
+alma_sylius:
+    flash:
+        payment_creation_failed: The Alma payment creation failed. You can retry from the order summary.
+        payment_return_failed: A problem occurred on the payment return. Please retry or contact support.
+        payment_fraud_detected: The payment could not be validated. If your account was charged, please contact support.
+        payment_paid: Your payment has been confirmed.
+        payment_cancelled: Payment cancelled. You can retry from the order summary.
+        payment_cancel_failed: A problem occurred while cancelling the payment. Please retry or contact support.
+        refund_failed: Alma could not process the refund. Please retry or contact support.

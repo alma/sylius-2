@@ -1,0 +1,5 @@
+alma_sylius_payment:
+    resource:
+        path: ../../src/Controller/Payment/
+        namespace: Alma\Sylius\Controller\Payment
+    type: attribute
