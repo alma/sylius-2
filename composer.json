@@ -1,0 +1,42 @@
+{
+    "name": "alma/sylius-2-payment",
+    "type": "sylius-plugin",
+    "description": "Alma payment plugin for Sylius 2.0.",
+    "version": "0.0.1",
+    "keywords": [
+        "sylius",
+        "sylius-plugin",
+        "alma",
+        "payment"
+    ],
+    "license": "MIT",
+    "require": {
+        "php": "^8.2",
+        "alma/alma-php-client": "^3.0",
+        "sylius/sylius": "^2.0"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^10.5"
+    },
+    "config": {
+        "sort-packages": true,
+        "lock": false,
+        "allow-plugins": {
+            "dealerdirect/phpcodesniffer-composer-installer": false,
+            "php-http/discovery": false,
+            "phpstan/extension-installer": true,
+            "symfony/flex": true,
+            "symfony/runtime": true
+        }
+    },
+    "autoload": {
+        "psr-4": {
+            "Alma\\Sylius\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Tests\\Alma\\Sylius\\": "tests/"
+        }
+    }
+}

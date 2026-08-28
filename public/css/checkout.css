@@ -1,0 +1,11 @@
+.alma-group { border: 1px solid #dee2e6; border-radius: .5rem; background: #fff; }
+.alma-group + .alma-group { margin-top: .5rem; }
+.alma-group--active { border-color: #212529; }
+.alma-group__header { display: flex; align-items: center; gap: .75rem; padding: .75rem 1rem; cursor: pointer; }
+.alma-group__bullet { flex: none; width: 1.25rem; height: 1.25rem; border: 1px solid #adb5bd; border-radius: 50%; position: relative; }
+.alma-group--active .alma-group__bullet::after { content: ""; position: absolute; inset: .25rem; border-radius: 50%; background: #212529; }
+.alma-group__title { font-weight: 600; }
+.alma-group__logo { margin-left: auto; }
+.alma-group__buttons { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: .75rem; }
+.alma-plan-btn { border: 1px solid #dee2e6; border-radius: .5rem; background: #fff; padding: .375rem .75rem; font-weight: 600; cursor: pointer; }
+.alma-plan-btn[aria-pressed="true"] { background: #fa5022; border-color: #fa5022; color: #fff; }

@@ -1,0 +1,57 @@
+alma_sylius:
+    form:
+        configuration:
+            section_title: Configuration API
+            api_key_live: Clé API Live
+            api_key_test: Clé API Test
+            api_mode: Mode API
+            merchant_id: Identifiant marchand
+            product_widget_enabled: Afficher le widget Alma sur la page produit
+            mode:
+                live: Live
+                test: Test
+        error:
+            api_key_invalid: Cette clé API est invalide ou injoignable.
+            merchant_cannot_create_payments: Ce compte ne peut pas créer de paiements.
+            cross_keys_merchant_mismatch: Les clés Test et Live doivent appartenir au même compte Alma.
+    fee_plan:
+        section_title: Plans de paiement
+        empty_state: Configurez une clé pour afficher les plans.
+        column:
+            label: Libellé
+            enabled: Activé
+            api_min: Min Alma
+            override_min: Override min
+            override_max: Override max
+            api_max: Max Alma
+        label:
+            installments: Paiement en %n%×
+            deferred_days: Paiement à J+%n%
+            deferred_months: Paiement à M+%n%
+        warning:
+            range_clamped: "Override pour le plan %plan% hors plage API, valeur ajustée à %value%."
+    gateway:
+        label: Alma
+    checkout:
+        customer_fee: Frais client
+        no_customer_fee: Sans frais
+        groups_aria_label: Options de paiement Alma
+        group:
+            pay_now:
+                title: Payer par carte bancaire
+                subtitle: Paiement rapide et sécurisé par carte bancaire
+            installments:
+                title: Payer en plusieurs fois
+            deferred:
+                title: Payer plus tard
+            credit:
+                title: Étaler votre paiement
+        button:
+            installments: "%count%x"
+            deferred_days: "+%count%j"
+            deferred_months: "+%count% mois"
+            installments_deferred_days: "%installments%x +%days%j"
+            installments_deferred_months: "%installments%x +%count% mois"
+        schedule:
+            today: Aujourd'hui
+            total: Total

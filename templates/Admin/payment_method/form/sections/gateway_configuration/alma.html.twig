@@ -1,0 +1,97 @@
+{# Rendered on `sylius_admin.payment_method.{create,update}.content.form.sections.gateway_configuration.alma` —
+   Sylius 2.0 admin uses Twig hooks (not auto-rendering) to expose gateway configuration form fields. #}
+{% set form = hookable_metadata.context.form.gatewayConfig.config %}
+
+{# Same accordion markup as @SyliusAdmin/shared/helper/translations.html.twig — Bootstrap 5 collapse, no extra JS.
+   Collapsed when a key already configured; forced open on errors — spec want validation errors visible on save. #}
+{% set has_key = (form.api_key_live.vars.data ?? '') != '' or (form.api_key_test.vars.data ?? '') != '' %}
+{% set has_errors = form.vars.errors|length > 0
+    or form.api_key_live.vars.errors|length > 0
+    or form.api_key_test.vars.errors|length > 0
+    or form.api_mode.vars.errors|length > 0 %}
+{% set api_section_collapsed = has_key and not has_errors %}
+<div class="accordion mb-3" id="alma-api-configuration-accordion">
+    <div class="accordion-item">
+        <h2 class="accordion-header">
+            <button class="accordion-button {{ api_section_collapsed ? 'collapsed' }}" type="button" data-bs-toggle="collapse" data-bs-target="#alma-api-configuration" aria-expanded="{{ api_section_collapsed ? 'false' : 'true' }}" aria-controls="alma-api-configuration">
+                {{ 'alma_sylius.form.configuration.section_title'|trans }}
+            </button>
+        </h2>
+        <div id="alma-api-configuration" class="accordion-collapse collapse {{ api_section_collapsed ? '' : 'show' }}">
+            <div class="accordion-body">
+                {{ form_row(form.api_key_live) }}
+                {{ form_row(form.api_key_test) }}
+                {{ form_row(form.api_mode) }}
+                {{ form_row(form.product_widget_enabled) }}
+            </div>
+        </div>
+    </div>
+</div>
+
+{# Only plans whose dynamic fields were built. On a rejected-save re-render
+   the SUBMIT listener restores the persisted fee_plans into the data while
+   PRE_SET_DATA built fields for the freshly-refreshed list only — when the
+   active mode has no key that list is empty, and rendering a data-only plan
+   would crash on the missing form child. #}
+{% set fee_plans = [] %}
+{% for planKey, apiPlan in form.vars.data.fee_plans|default([]) %}
+    {% if form.children['fee_plan_enabled__' ~ planKey] is defined %}
+        {% set fee_plans = fee_plans|merge({(planKey): apiPlan}) %}
+    {% endif %}
+{% endfor %}
+<div class="accordion mb-3" id="alma-fee-plans-accordion">
+    <div class="accordion-item">
+        <h2 class="accordion-header">
+            <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#alma-fee-plans" aria-expanded="true" aria-controls="alma-fee-plans">
+                {{ 'alma_sylius.fee_plan.section_title'|trans }}
+            </button>
+        </h2>
+        <div id="alma-fee-plans" class="accordion-collapse collapse show">
+    {% if fee_plans is not empty %}
+        <div class="accordion-body p-0">
+            <table class="table mb-0">
+                <thead>
+                    <tr>
+                        <th>{{ 'alma_sylius.fee_plan.column.label'|trans }}</th>
+                        <th class="text-center">{{ 'alma_sylius.fee_plan.column.enabled'|trans }}</th>
+                        <th class="text-end">{{ 'alma_sylius.fee_plan.column.api_min'|trans }}</th>
+                        <th>{{ 'alma_sylius.fee_plan.column.override_min'|trans }}</th>
+                        <th>{{ 'alma_sylius.fee_plan.column.override_max'|trans }}</th>
+                        <th class="text-end">{{ 'alma_sylius.fee_plan.column.api_max'|trans }}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for planKey, apiPlan in fee_plans %}
+                        <tr>
+                            <td>
+                                {%- if apiPlan.deferred_days > 0 -%}
+                                    {{ 'alma_sylius.fee_plan.label.deferred_days'|trans({'%n%': apiPlan.deferred_days}) }}
+                                {%- elseif apiPlan.deferred_months > 0 -%}
+                                    {{ 'alma_sylius.fee_plan.label.deferred_months'|trans({'%n%': apiPlan.deferred_months}) }}
+                                {%- else -%}
+                                    {{ 'alma_sylius.fee_plan.label.installments'|trans({'%n%': apiPlan.installments_count}) }}
+                                {%- endif -%}
+                                <small class="text-muted d-block">{{ planKey }}</small>
+                            </td>
+                            <td class="text-center">{{ form_widget(form['fee_plan_enabled__' ~ planKey]) }}</td>
+                            <td class="text-end">{{ apiPlan.min_purchase_amount }}</td>
+                            <td>
+                                {{ form_widget(form['fee_plan_override_min__' ~ planKey], {'attr': {'placeholder': apiPlan.min_purchase_amount, 'class': 'form-control'}}) }}
+                            </td>
+                            <td>
+                                {{ form_widget(form['fee_plan_override_max__' ~ planKey], {'attr': {'placeholder': apiPlan.max_purchase_amount, 'class': 'form-control'}}) }}
+                            </td>
+                            <td class="text-end">{{ apiPlan.max_purchase_amount }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <div class="accordion-body">
+            <div class="alert alert-warning mb-0" role="alert">{{ 'alma_sylius.fee_plan.empty_state'|trans }}</div>
+        </div>
+    {% endif %}
+        </div>
+    </div>
+</div>

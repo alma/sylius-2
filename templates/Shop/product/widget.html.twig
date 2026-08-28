@@ -1,0 +1,12 @@
+{% set config = alma_product_widget_config(hookable_metadata.context.variant ?? null) %}
+{% if config is not null %}
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@alma/widgets@4.x/dist/widgets.min.css">
+    {# data-live-ignore: Symfony UX Live Components neither morph nor remove
+       ignored elements, so the client-rendered widget markup survives the
+       summary re-renders; the JSON config sibling stays morphable on purpose
+       to carry the newly selected variant's price. #}
+    <div id="alma-product-widget" class="my-3" data-live-ignore></div>
+    <script type="application/json" id="alma-product-widget-config">{{ config|json_encode(constant('JSON_HEX_TAG'))|raw }}</script>
+    <script src="https://cdn.jsdelivr.net/npm/@alma/widgets@4.x/dist/widgets.umd.js" defer></script>
+    <script src="{{ asset('bundles/almasyliusplugin/js/product-widget.js') }}" defer></script>
+{% endif %}

@@ -1,0 +1,4 @@
+Sylius\Component\Payment\Model\PaymentMethod:
+    constraints:
+        - Alma\Sylius\Validator\Constraint\UniqueAlmaPaymentMethod:
+              groups: [sylius]

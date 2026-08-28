@@ -1,0 +1,290 @@
+{# Hookable renders inside Sylius's select_payment <label class="card-body">:
+   nested <label> invalid HTML, breaks parent label toggle. Group headers =
+   div[role=radio], plan selectors = <button type="button">. Real ChoiceType
+   radios stay hidden below — sole submitted contract
+   (details[alma_fee_plan_key] = raw plan key). #}
+
+{% macro cents(amount) %}{{ (amount / 100)|number_format(2, ',', ' ') }}{% endmacro %}
+
+{% set payment_form = hookable_metadata.context.parent_form %}
+{% set payment_method = hookable_metadata.context.method %}
+{% set choice_field = payment_form.details.alma_fee_plan_key|default(null) %}
+{% set order = payment_form.vars.data.order|default(null) %}
+
+{% if choice_field is not null and order is not null %}
+    {% set groups = alma_eligibility_groups(order) %}
+
+    {# Placeholder pseudo-child (ChoiceType required=false) has empty value:
+       excluded here so no button or auto-select can ever submit an empty key. #}
+    {% set radio_ids = {} %}
+    {% for child in choice_field %}
+        {% if child.vars.value %}
+            {% set radio_ids = radio_ids|merge({(child.vars.value): child.vars.id}) %}
+        {% endif %}
+    {% endfor %}
+
+    <div class="alma-fee-plans mt-3" data-alma-method-code="{{ payment_method.code }}" role="radiogroup" aria-label="{{ 'alma_sylius.checkout.groups_aria_label'|trans }}">
+        {% for view in groups %}
+            {% set group_plans = view.plans|filter(plan => radio_ids[plan.planKey] is defined) %}
+            {% if group_plans is not empty %}
+                {% set plan_ids = group_plans|map(plan => radio_ids[plan.planKey]) %}
+                <div class="alma-group" data-alma-group="{{ view.group.value }}" data-alma-plans="{{ plan_ids|join(',') }}">
+                    <div class="alma-group__header" data-alma-group-toggle role="radio" aria-checked="false" tabindex="0">
+                        <span class="alma-group__bullet" aria-hidden="true"></span>
+                        <span class="alma-group__title">{{ view.group.titleKey|trans }}</span>
+                        <img class="alma-group__logo" src="{{ asset('bundles/almasyliusplugin/images/alma-logo.svg') }}" alt="Alma" height="20">
+                    </div>
+                    <div class="alma-group__body px-3 pb-3" hidden data-alma-group-body>
+                        {% if view.group.subtitleKey %}
+                            <p class="alma-group__subtitle small text-muted mb-2">{{ view.group.subtitleKey|trans }}</p>
+                        {% endif %}
+
+                        {% if view.group.showsButtons %}
+                            <div class="alma-group__buttons">
+                                {% for plan in group_plans %}
+                                    <button type="button" class="alma-plan-btn" data-alma-plan-target="{{ radio_ids[plan.planKey] }}" aria-pressed="false">
+                                        {{- plan.buttonLabelKey|trans(plan.buttonLabelParams) -}}
+                                    </button>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+
+                        {% if view.group.showsSchedule or view.group.showsFeeLine %}
+                            {% for plan in group_plans %}
+                                <div class="alma-plan-detail" hidden data-alma-plan-detail="{{ radio_ids[plan.planKey] }}">
+                                    {% if view.group.showsSchedule and plan.scheduleRows is not empty %}
+                                        <table class="alma-plan__schedule table table-sm small mb-2">
+                                            <tbody>
+                                                {% for row in plan.scheduleRows %}
+                                                    <tr>
+                                                        <td class="px-2">
+                                                            {%- if row.isToday -%}
+                                                                {{ 'alma_sylius.checkout.schedule.today'|trans }}
+                                                            {%- elseif row.dueDate is not null -%}
+                                                                {{ row.dueDate|date('d/m/Y') }}
+                                                            {%- endif -%}
+                                                        </td>
+                                                        <td class="px-2 text-end">{{ _self.cents(row.amount) }} €</td>
+                                                    </tr>
+                                                {% endfor %}
+                                                <tr class="fw-bold">
+                                                    <td class="px-2">{{ 'alma_sylius.checkout.schedule.total'|trans }}</td>
+                                                    <td class="px-2 text-end">{{ _self.cents(plan.total) }} €</td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    {% endif %}
+
+                                    {% if view.group.showsFeeLine %}
+                                        <p class="alma-plan__fees small text-muted mb-0">
+                                            {% if plan.customerFee > 0 %}
+                                                {{ 'alma_sylius.checkout.customer_fee'|trans }} : {{ _self.cents(plan.customerFee) }} €
+                                            {% else %}
+                                                {{ 'alma_sylius.checkout.no_customer_fee'|trans }}
+                                            {% endif %}
+                                        </p>
+                                    {% endif %}
+                                </div>
+                            {% endfor %}
+                        {% endif %}
+                    </div>
+                </div>
+            {% endif %}
+        {% endfor %}
+
+        {# display:none keeps checked radios submittable (only `disabled` drops
+           them from the payload). #}
+        <div style="display: none">
+            {% for child in choice_field %}{{ form_widget(child) }}{% endfor %}
+        </div>
+    </div>
+
+    <script>
+        (function () {
+            // Document-level listeners bind once per page; syncWrappers must
+            // still run on every execution and after every live re-render.
+            var alreadyBound = window.__almaFeePlansBound;
+            window.__almaFeePlansBound = true;
+
+            function getWrappers() {
+                return document.querySelectorAll('.alma-fee-plans');
+            }
+
+            function planIds(groupEl) {
+                return (groupEl.dataset.almaPlans || '').split(',').filter(Boolean);
+            }
+
+            // Radios are the only state; every visual (open group, active
+            // button, visible detail) derives from them. Safe from any event.
+            function syncWrappers() {
+                getWrappers().forEach(function (wrapper) {
+                    var methodCode = wrapper.dataset.almaMethodCode;
+                    if (!methodCode) {
+                        return;
+                    }
+                    var methodRadio = document.querySelector(
+                        'input[type="radio"][name$="[method]"][value="' + methodCode + '"]'
+                    );
+                    var almaSelected = methodRadio && methodRadio.checked;
+                    var groups = wrapper.querySelectorAll('[data-alma-group]');
+
+                    var allIds = [];
+                    groups.forEach(function (g) { allIds = allIds.concat(planIds(g)); });
+
+                    var checkedId = null;
+                    allIds.forEach(function (id) {
+                        var radio = document.getElementById(id);
+                        if (radio && radio.checked) {
+                            checkedId = id;
+                        }
+                    });
+
+                    if (almaSelected && !checkedId && allIds.length > 0) {
+                        var first = document.getElementById(allIds[0]);
+                        if (first) {
+                            first.checked = true;
+                            checkedId = allIds[0];
+                            first.dispatchEvent(new Event('change', { bubbles: true }));
+                        }
+                    }
+                    if (!almaSelected && checkedId) {
+                        allIds.forEach(function (id) {
+                            var radio = document.getElementById(id);
+                            if (radio) {
+                                radio.checked = false;
+                            }
+                        });
+                        checkedId = null;
+                    }
+
+                    groups.forEach(function (g, index) {
+                        var ids = planIds(g);
+                        var open = checkedId !== null && ids.indexOf(checkedId) !== -1;
+                        var header = g.querySelector('[data-alma-group-toggle]');
+                        var body = g.querySelector('[data-alma-group-body]');
+                        g.classList.toggle('alma-group--active', open);
+                        if (header) {
+                            header.setAttribute('aria-checked', open ? 'true' : 'false');
+                            header.setAttribute('tabindex', (open || (checkedId === null && index === 0)) ? '0' : '-1');
+                        }
+                        if (body) {
+                            body.hidden = !open;
+                        }
+                        g.querySelectorAll('[data-alma-plan-target]').forEach(function (btn) {
+                            btn.setAttribute('aria-pressed', btn.dataset.almaPlanTarget === checkedId ? 'true' : 'false');
+                        });
+                        g.querySelectorAll('[data-alma-plan-detail]').forEach(function (detail) {
+                            detail.hidden = detail.dataset.almaPlanDetail !== checkedId;
+                        });
+                    });
+                });
+            }
+
+            function checkPlan(radioId) {
+                var radio = document.getElementById(radioId);
+                if (radio && !radio.checked) {
+                    radio.checked = true;
+                    radio.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+            }
+
+            function activateGroup(groupEl) {
+                if (!groupEl) {
+                    return;
+                }
+                var ids = planIds(groupEl);
+                if (ids.length === 0) {
+                    return;
+                }
+                var alreadyChecked = ids.some(function (id) {
+                    var radio = document.getElementById(id);
+                    return radio && radio.checked;
+                });
+                if (!alreadyChecked) {
+                    checkPlan(ids[0]);
+                }
+            }
+
+            if (!alreadyBound) {
+                document.addEventListener('click', function (event) {
+                    var btn = event.target.closest('[data-alma-plan-target]');
+                    if (btn) {
+                        event.preventDefault();
+                        checkPlan(btn.dataset.almaPlanTarget);
+                        return;
+                    }
+                    var header = event.target.closest('[data-alma-group-toggle]');
+                    if (header) {
+                        event.preventDefault();
+                        activateGroup(header.closest('[data-alma-group]'));
+                    }
+                });
+
+                document.addEventListener('keydown', function (event) {
+                    var header = event.target.closest('[data-alma-group-toggle]');
+                    if (!header) {
+                        return;
+                    }
+                    if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        activateGroup(header.closest('[data-alma-group]'));
+                        return;
+                    }
+                    var delta = 0;
+                    if (event.key === 'ArrowDown' || event.key === 'ArrowRight') {
+                        delta = 1;
+                    } else if (event.key === 'ArrowUp' || event.key === 'ArrowLeft') {
+                        delta = -1;
+                    }
+                    if (delta === 0) {
+                        return;
+                    }
+                    event.preventDefault();
+                    var headers = Array.prototype.slice.call(
+                        header.closest('.alma-fee-plans').querySelectorAll('[data-alma-group-toggle]')
+                    );
+                    var next = headers[(headers.indexOf(header) + delta + headers.length) % headers.length];
+                    next.focus();
+                    activateGroup(next.closest('[data-alma-group]'));
+                });
+
+                document.addEventListener('change', function (event) {
+                    var target = event.target;
+                    if (!(target instanceof HTMLInputElement) || target.type !== 'radio') {
+                        return;
+                    }
+
+                    // Checked plan radio → mirror onto the Alma method radio.
+                    if (target.checked) {
+                        var wrapper = target.closest('.alma-fee-plans');
+                        if (wrapper) {
+                            var methodCode = wrapper.dataset.almaMethodCode;
+                            var methodRadio = methodCode && document.querySelector(
+                                'input[type="radio"][name$="[method]"][value="' + methodCode + '"]'
+                            );
+                            if (methodRadio && !methodRadio.checked) {
+                                methodRadio.checked = true;
+                                methodRadio.dispatchEvent(new Event('change', { bubbles: true }));
+                            }
+                        }
+                    }
+
+                    syncWrappers();
+                });
+
+                document.addEventListener('DOMContentLoaded', syncWrappers);
+
+                // ux-live-component emits no live:render DOM event; the component
+                // handed to live:connect exposes the render:finished hook instead.
+                document.addEventListener('live:connect', function (event) {
+                    event.detail.component.on('render:finished', syncWrappers);
+                });
+            }
+
+            // Late-injected script: DOMContentLoaded may already be gone.
+            if (document.readyState !== 'loading') {
+                syncWrappers();
+            }
+        })();
+    </script>
+{% endif %}
