@@ -10,6 +10,32 @@ alma_sylius:
             mode:
                 live: Live
                 test: Test
+            display:
+                section_title: Display
+                widget:
+                    title: Product widget
+                    description: Show the Alma installments preview on the product page.
+                checkout:
+                    title: Checkout personalization
+                    description: Customize the title and the description shown for each Alma payment group at checkout, for each store locale.
+                column:
+                    group: Payment group
+                    title: Title
+                    description: Description
+                description_placeholder: Optional text shown under the group title at checkout
+                group:
+                    pay_now:
+                        name: Pay now
+                        definition: Single immediate payment
+                    installments:
+                        name: Installments
+                        definition: Payment split into 2 to 4 installments
+                    deferred:
+                        name: Deferred payment
+                        definition: Single payment charged after a set number of days
+                    credit:
+                        name: Credit
+                        definition: More than 4 installments
         error:
             api_key_invalid: This API key is invalid or unreachable.
             merchant_cannot_create_payments: This account is not allowed to create payments.

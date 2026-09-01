@@ -2,3 +2,4 @@ alma_sylius:
     form:
         error:
             payment_method_already_exists: Une méthode de paiement Alma existe déjà. Éditez la méthode existante au lieu d'en créer une seconde.
+            display_title_required: Le titre du groupe est obligatoire.

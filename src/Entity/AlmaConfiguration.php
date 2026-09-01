@@ -33,7 +33,10 @@ class AlmaConfiguration
     /** @var array<string, array<string, mixed>>|null */
     private ?array $feePlanOverrides = null;
 
-    private bool $productWidgetEnabled = false;
+    private bool $productWidgetEnabled = true;
+
+    /** @var array<string, array<string, array<string, mixed>>>|null */
+    private ?array $displayTexts = null;
 
     public function getApiKeyLive(): ?string
     {
@@ -115,6 +118,24 @@ class AlmaConfiguration
     public function setFeePlanOverrides(?array $feePlanOverrides): self
     {
         $this->feePlanOverrides = $feePlanOverrides;
+
+        return $this;
+    }
+
+    /**
+     * @return array<string, array<string, array<string, mixed>>>|null
+     */
+    public function getDisplayTexts(): ?array
+    {
+        return $this->displayTexts;
+    }
+
+    /**
+     * @param array<string, array<string, array<string, mixed>>>|null $displayTexts
+     */
+    public function setDisplayTexts(?array $displayTexts): self
+    {
+        $this->displayTexts = $displayTexts;
 
         return $this;
     }

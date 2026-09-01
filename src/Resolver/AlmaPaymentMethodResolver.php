@@ -8,6 +8,7 @@ use Alma\Sylius\Entity\AlmaConfiguration;
 use Sylius\Component\Payment\Model\GatewayConfigInterface;
 use Sylius\Component\Payment\Model\PaymentMethodInterface;
 use Sylius\Component\Payment\Repository\PaymentMethodRepositoryInterface;
+use Symfony\Contracts\Service\ResetInterface;
 
 /**
  * Single access point to the operational Alma configuration.
@@ -19,9 +20,11 @@ use Sylius\Component\Payment\Repository\PaymentMethodRepositoryInterface;
  * code (eligibility, payment creation, IPN, refund, fraud, product-widget) does
  * not couple to the Sylius storage shape.
  */
-class AlmaPaymentMethodResolver
+class AlmaPaymentMethodResolver implements ResetInterface
 {
     public const GATEWAY_FACTORY_NAME = 'alma';
+
+    private ?AlmaConfiguration $configuration = null;
 
     public function __construct(
         private readonly PaymentMethodRepositoryInterface $paymentMethodRepository,
@@ -33,12 +36,25 @@ class AlmaPaymentMethodResolver
         return $paymentMethod->getGatewayConfig()?->getFactoryName() === self::GATEWAY_FACTORY_NAME;
     }
 
+    /**
+     * Memoized for the request: a checkout render reads the configuration from
+     * several consumers (eligibility, per-group display texts), each of which
+     * would otherwise re-scan the payment method repository.
+     */
     public function getConfiguration(): AlmaConfiguration
     {
-        $paymentMethod = $this->findAlmaPaymentMethod();
-        $config = $paymentMethod?->getGatewayConfig()?->getConfig() ?? [];
+        if ($this->configuration === null) {
+            $paymentMethod = $this->findAlmaPaymentMethod();
+            $config = $paymentMethod?->getGatewayConfig()?->getConfig() ?? [];
+            $this->configuration = $this->buildConfiguration($config);
+        }
 
-        return $this->buildConfiguration($config);
+        return $this->configuration;
+    }
+
+    public function reset(): void
+    {
+        $this->configuration = null;
     }
 
     /**
@@ -99,7 +115,8 @@ class AlmaPaymentMethodResolver
         $configuration->setMerchantId($this->nullableString($config['merchant_id'] ?? null));
         $configuration->setFeePlans($this->nullableArray($config['fee_plans'] ?? null));
         $configuration->setFeePlanOverrides($this->nullableArray($config['fee_plan_overrides'] ?? null));
-        $configuration->setProductWidgetEnabled((bool) ($config['product_widget_enabled'] ?? false));
+        $configuration->setProductWidgetEnabled((bool) ($config['product_widget_enabled'] ?? true));
+        $configuration->setDisplayTexts($this->nullableArray($config['display_texts'] ?? null));
 
         return $configuration;
     }

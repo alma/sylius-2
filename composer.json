@@ -2,7 +2,7 @@
     "name": "alma/sylius-2-payment",
     "type": "sylius-plugin",
     "description": "Alma payment plugin for Sylius 2.0.",
-    "version": "0.0.1",
+    "version": "1.0.0",
     "keywords": [
         "sylius",
         "sylius-plugin",

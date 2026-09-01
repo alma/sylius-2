@@ -9,7 +9,10 @@ use Alma\Sylius\Api\ApiKeyValidationResult;
 use Alma\Sylius\Api\ApiKeyValidator;
 use Alma\Sylius\Api\FeePlansFetcher;
 use Alma\Sylius\Api\FeePlansFetchFailedException;
+use Alma\Sylius\Checkout\GroupDisplayTextsResolver;
+use Alma\Sylius\Checkout\PlanGroup;
 use Alma\Sylius\Entity\AlmaConfiguration;
+use Sylius\Component\Locale\Provider\LocaleProviderInterface;
 use Symfony\Component\Form\AbstractType;
 use Symfony\Component\Form\Extension\Core\Type\CheckboxType;
 use Symfony\Component\Form\Extension\Core\Type\ChoiceType;
@@ -20,8 +23,11 @@ use Symfony\Component\Form\FormError;
 use Symfony\Component\Form\FormEvent;
 use Symfony\Component\Form\FormEvents;
 use Symfony\Component\Form\FormInterface;
+use Symfony\Component\Form\FormView;
 use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Component\OptionsResolver\OptionsResolver;
+use Symfony\Component\Validator\Constraints\Length;
+use Symfony\Component\Validator\Constraints\NotBlank;
 use Symfony\Contracts\Translation\TranslatorInterface;
 
 /**
@@ -56,12 +62,16 @@ use Symfony\Contracts\Translation\TranslatorInterface;
 final class AlmaGatewayConfigurationType extends AbstractType
 {
     private const DEFAULT_FEE_PLAN_KEY = 'general_3_0_0';
+    private const DISPLAY_TITLE_MAX_LENGTH = 50;
+    private const DISPLAY_DESCRIPTION_MAX_LENGTH = 150;
 
     public function __construct(
         private readonly ApiKeyValidator $apiKeyValidator,
         private readonly FeePlansFetcher $feePlansFetcher,
         private readonly TranslatorInterface $translator,
         private readonly RequestStack $requestStack,
+        private readonly GroupDisplayTextsResolver $displayTextsResolver,
+        private readonly LocaleProviderInterface $localeProvider,
     ) {
     }
 
@@ -104,6 +114,7 @@ final class AlmaGatewayConfigurationType extends AbstractType
                 if (!\in_array($config['api_mode'] ?? null, AlmaConfiguration::MODES, true)) {
                     $config['api_mode'] = AlmaConfiguration::MODE_TEST;
                 }
+                $config['product_widget_enabled'] = (bool) ($config['product_widget_enabled'] ?? true);
                 $previousConfig = $config;
 
                 $latestFeePlans = $this->refreshFeePlans($config);
@@ -113,6 +124,11 @@ final class AlmaGatewayConfigurationType extends AbstractType
                     $event->getForm(),
                     $latestFeePlans,
                     $config['fee_plan_overrides'] ?? [],
+                );
+
+                $this->addDisplayTextFields(
+                    $event->getForm(),
+                    \is_array($config['display_texts'] ?? null) ? $config['display_texts'] : [],
                 );
 
                 $event->setData($config);
@@ -229,6 +245,7 @@ final class AlmaGatewayConfigurationType extends AbstractType
                 }
 
                 $data['fee_plan_overrides'] = $overrides;
+                $data['display_texts'] = $this->collectDisplayTexts($event->getForm());
                 $deferredFlash = $warnings;
 
                 $event->setData($data);
@@ -257,6 +274,15 @@ final class AlmaGatewayConfigurationType extends AbstractType
                     }
                 }
             },
+        );
+    }
+
+    public function buildView(FormView $view, FormInterface $form, array $options): void
+    {
+        $view->vars['display_locales'] = $this->localeProvider->getAvailableLocalesCodes();
+        $view->vars['display_groups'] = array_map(
+            static fn (PlanGroup $group): string => $group->value,
+            PlanGroup::cases(),
         );
     }
 
@@ -351,6 +377,69 @@ final class AlmaGatewayConfigurationType extends AbstractType
                 'label' => false,
             ]);
         }
+    }
+
+    /**
+     * @param array<string, array<string, array<string, mixed>>> $displayTexts
+     */
+    private function addDisplayTextFields(FormInterface $form, array $displayTexts): void
+    {
+        foreach ($this->localeProvider->getAvailableLocalesCodes() as $locale) {
+            foreach (PlanGroup::cases() as $group) {
+                $text = $this->displayTextsResolver->resolve($displayTexts, $group, $locale);
+
+                $form->add(sprintf('display_title__%s__%s', $group->value, $locale), TextType::class, [
+                    'mapped' => false,
+                    'required' => true,
+                    'data' => $text->title,
+                    'label' => false,
+                    'constraints' => [
+                        new NotBlank(message: 'alma_sylius.form.error.display_title_required'),
+                        new Length(max: self::DISPLAY_TITLE_MAX_LENGTH),
+                    ],
+                    'attr' => ['maxlength' => self::DISPLAY_TITLE_MAX_LENGTH],
+                ]);
+                $form->add(sprintf('display_description__%s__%s', $group->value, $locale), TextType::class, [
+                    'mapped' => false,
+                    'required' => false,
+                    'data' => $text->description,
+                    'label' => false,
+                    'constraints' => [
+                        new Length(max: self::DISPLAY_DESCRIPTION_MAX_LENGTH),
+                    ],
+                    'attr' => [
+                        'maxlength' => self::DISPLAY_DESCRIPTION_MAX_LENGTH,
+                        'placeholder' => 'alma_sylius.form.configuration.display.description_placeholder',
+                    ],
+                ]);
+            }
+        }
+    }
+
+    /**
+     * @return array<string, array<string, array{title: string, description: string|null}>>
+     */
+    private function collectDisplayTexts(FormInterface $form): array
+    {
+        $texts = [];
+
+        foreach ($this->localeProvider->getAvailableLocalesCodes() as $locale) {
+            foreach (PlanGroup::cases() as $group) {
+                $titleField = sprintf('display_title__%s__%s', $group->value, $locale);
+                if (!$form->has($titleField)) {
+                    continue;
+                }
+
+                $description = trim((string) $form->get(sprintf('display_description__%s__%s', $group->value, $locale))->getData());
+
+                $texts[$locale][$group->value] = [
+                    'title' => trim((string) $form->get($titleField)->getData()),
+                    'description' => $description === '' ? null : $description,
+                ];
+            }
+        }
+
+        return $texts;
     }
 
     private function messageForError(?ApiKeyValidationError $error): string
