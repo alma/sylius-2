@@ -40,9 +40,9 @@ enum PlanGroup: string
         return sprintf('alma_sylius.checkout.group.%s.title', $this->value);
     }
 
-    public function subtitleKey(): ?string
+    public function subtitleKey(): string
     {
-        return self::PayNow === $this ? 'alma_sylius.checkout.group.pay_now.subtitle' : null;
+        return sprintf('alma_sylius.checkout.group.%s.subtitle', $this->value);
     }
 
     public function showsButtons(): bool

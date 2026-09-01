@@ -28,17 +28,17 @@
             {% set group_plans = view.plans|filter(plan => radio_ids[plan.planKey] is defined) %}
             {% if group_plans is not empty %}
                 {% set plan_ids = group_plans|map(plan => radio_ids[plan.planKey]) %}
+                {% set display = alma_group_display(view.group) %}
                 <div class="alma-group" data-alma-group="{{ view.group.value }}" data-alma-plans="{{ plan_ids|join(',') }}">
                     <div class="alma-group__header" data-alma-group-toggle role="radio" aria-checked="false" tabindex="0">
                         <span class="alma-group__bullet" aria-hidden="true"></span>
-                        <span class="alma-group__title">{{ view.group.titleKey|trans }}</span>
+                        <span class="alma-group__title">{{ display.title }}</span>
                         <img class="alma-group__logo" src="{{ asset('bundles/almasyliusplugin/images/alma-logo.svg') }}" alt="Alma" height="20">
                     </div>
+                    {% if display.description %}
+                        <div class="alma-group__description small text-muted ps-5 pe-3 pb-3">{{ display.description }}</div>
+                    {% endif %}
                     <div class="alma-group__body px-3 pb-3" hidden data-alma-group-body>
-                        {% if view.group.subtitleKey %}
-                            <p class="alma-group__subtitle small text-muted mb-2">{{ view.group.subtitleKey|trans }}</p>
-                        {% endif %}
-
                         {% if view.group.showsButtons %}
                             <div class="alma-group__buttons">
                                 {% for plan in group_plans %}

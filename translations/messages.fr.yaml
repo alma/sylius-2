@@ -10,6 +10,32 @@ alma_sylius:
             mode:
                 live: Live
                 test: Test
+            display:
+                section_title: Affichage
+                widget:
+                    title: Widget produit
+                    description: Affiche l'aperçu des paiements Alma sur la page produit.
+                checkout:
+                    title: Personnalisation du checkout
+                    description: Personnalisez le titre et la description affichés pour chaque groupe de paiement Alma au checkout, pour chaque langue de la boutique.
+                column:
+                    group: Groupe de paiement
+                    title: Titre
+                    description: Description
+                description_placeholder: Texte optionnel affiché sous le titre au checkout
+                group:
+                    pay_now:
+                        name: Paiement comptant
+                        definition: Paiement unique immédiat
+                    installments:
+                        name: Paiement en plusieurs fois
+                        definition: Paiement fractionné en 2 à 4 échéances
+                    deferred:
+                        name: Paiement différé
+                        definition: Paiement unique prélevé après un délai en jours
+                    credit:
+                        name: Crédit
+                        definition: Plus de 4 échéances
         error:
             api_key_invalid: Cette clé API est invalide ou injoignable.
             merchant_cannot_create_payments: Ce compte ne peut pas créer de paiements.

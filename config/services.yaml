@@ -20,6 +20,8 @@ services:
 
     Alma\Sylius\Checkout\FeePlanGrouper: ~
 
+    Alma\Sylius\Checkout\GroupDisplayTextsResolver: ~
+
     Alma\Sylius\ProductWidget\:
         resource: '../src/ProductWidget/'
 
