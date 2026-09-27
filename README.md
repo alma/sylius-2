@@ -54,6 +54,19 @@ php bin/console cache:clear
 - Documentation: [docs.almapay.com](https://docs.almapay.com)
 - Contact: [support@getalma.eu](mailto:support@getalma.eu)
 
+## Development
+
+```bash
+composer install
+vendor/bin/phpunit          # unit suite (cipher, IPN verifier, fee plan grouper)
+vendor/bin/phpstan analyse  # level max, baseline-tracked legacy findings
+```
+
+CI runs both on PHP 8.2, 8.3 and 8.4. The PHPStan baseline
+(`phpstan-baseline.neon`) exists so the whole codebase is analysed at level
+max from day one: existing findings are tracked, new ones fail the build,
+and the baseline is expected to shrink, never grow.
+
 ## License
 
 This plugin is released under the [MIT License](LICENSE).
