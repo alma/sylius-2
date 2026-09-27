@@ -1,0 +1,277 @@
+parameters:
+	ignoreErrors:
+		-
+			message: '#^Cannot cast mixed to int\.$#'
+			identifier: cast.int
+			count: 8
+			path: src/Api/FeePlanAdapter.php
+
+		-
+			message: '#^Cannot cast mixed to string\.$#'
+			identifier: cast.string
+			count: 1
+			path: src/Api/FeePlanAdapter.php
+
+		-
+			message: '#^Method Alma\\Sylius\\Cache\\SessionEligibilityCache\:\:addressSignature\(\) should return array\<string, mixed\>\|null but returns array\|null\.$#'
+			identifier: return.type
+			count: 1
+			path: src/Cache/SessionEligibilityCache.php
+
+		-
+			message: '#^Method Alma\\Sylius\\Cache\\SessionEligibilityCache\:\:get\(\) should return array\<string, Alma\\Sylius\\Eligibility\\AlmaEligibility\>\|null but returns array\<mixed, mixed\>\|null\.$#'
+			identifier: return.type
+			count: 1
+			path: src/Cache/SessionEligibilityCache.php
+
+		-
+			message: '#^Cannot cast mixed to int\.$#'
+			identifier: cast.int
+			count: 5
+			path: src/Checkout/FeePlanGrouper.php
+
+		-
+			message: '#^Parameter \#2 \$params of method Alma\\Sylius\\Payment\\AlmaIpnSignatureVerifier\:\:verify\(\) expects array\<string, string\>, array\<string, mixed\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Controller/Payment/PaymentIpnController.php
+
+		-
+			message: '#^Cannot access offset ''sylius_twig_hooks'' on mixed\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 1
+			path: src/DependencyInjection/AlmaSyliusExtension.php
+
+		-
+			message: '#^Method Alma\\Sylius\\DependencyInjection\\AlmaSyliusExtension\:\:getNamespacesOfMigrationsExecutedBefore\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/DependencyInjection/AlmaSyliusExtension.php
+
+		-
+			message: '#^Parameter \#2 \$config of method Symfony\\Component\\DependencyInjection\\ContainerBuilder\:\:prependExtensionConfig\(\) expects array\<string, mixed\>, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/DependencyInjection/AlmaSyliusExtension.php
+
+		-
+			message: '#^Method Alma\\Sylius\\Eligibility\\AlmaEligibility\:\:getPaymentPlan\(\) should return array\<int, array\<string, mixed\>\> but returns array\.$#'
+			identifier: return.type
+			count: 1
+			path: src/Eligibility/AlmaEligibility.php
+
+		-
+			message: '#^Method Alma\\Sylius\\Eligibility\\AlmaEligibility\:\:getReasons\(\) should return array\<string, mixed\> but returns array\.$#'
+			identifier: return.type
+			count: 1
+			path: src/Eligibility/AlmaEligibility.php
+
+		-
+			message: '#^Cannot call method getDeferredDays\(\) on mixed\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: src/Eligibility/EligibilityFetcher.php
+
+		-
+			message: '#^Cannot call method getDeferredMonths\(\) on mixed\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: src/Eligibility/EligibilityFetcher.php
+
+		-
+			message: '#^Cannot call method getInstallmentsCount\(\) on mixed\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: src/Eligibility/EligibilityFetcher.php
+
+		-
+			message: '#^Cannot call method getKind\(\) on mixed\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: src/Eligibility/EligibilityFetcher.php
+
+		-
+			message: '#^Parameter \#2 \.\.\.\$values of function sprintf expects bool\|float\|int\|string\|null, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Eligibility/EligibilityFetcher.php
+
+		-
+			message: '#^Parameter \#3 \$remote of class Alma\\Sylius\\Eligibility\\AlmaEligibility constructor expects Alma\\Client\\Domain\\Entity\\Eligibility, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Eligibility/EligibilityFetcher.php
+
+		-
+			message: '#^Parameter \#3 \.\.\.\$values of function sprintf expects bool\|float\|int\|string\|null, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Eligibility/EligibilityFetcher.php
+
+		-
+			message: '#^Parameter \#4 \.\.\.\$values of function sprintf expects bool\|float\|int\|string\|null, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Eligibility/EligibilityFetcher.php
+
+		-
+			message: '#^Parameter \#5 \.\.\.\$values of function sprintf expects bool\|float\|int\|string\|null, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Eligibility/EligibilityFetcher.php
+
+		-
+			message: '#^Property Alma\\Sylius\\Entity\\AlmaPaymentReference\:\:\$id \(int\|null\) is never assigned int so it can be removed from the property type\.$#'
+			identifier: property.unusedType
+			count: 1
+			path: src/Entity/AlmaPaymentReference.php
+
+		-
+			message: '#^Parameter \#1 \$gatewayConfig of method Alma\\Sylius\\EventListener\\AlmaGatewayConfigCryptoListener\:\:applyToConfig\(\) expects Sylius\\Component\\Payment\\Model\\GatewayConfigInterface, object given\.$#'
+			identifier: argument.type
+			count: 5
+			path: src/EventListener/AlmaGatewayConfigCryptoListener.php
+
+		-
+			message: '#^Call to an undefined method Symfony\\Component\\HttpFoundation\\Session\\SessionInterface\:\:getFlashBag\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Form/Type/AlmaGatewayConfigurationType.php
+
+		-
+			message: '#^Cannot call method add\(\) on mixed\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: src/Form/Type/AlmaGatewayConfigurationType.php
+
+		-
+			message: '#^Cannot cast mixed to int\.$#'
+			identifier: cast.int
+			count: 5
+			path: src/Form/Type/AlmaGatewayConfigurationType.php
+
+		-
+			message: '#^Cannot cast mixed to string\.$#'
+			identifier: cast.string
+			count: 2
+			path: src/Form/Type/AlmaGatewayConfigurationType.php
+
+		-
+			message: '#^Method Alma\\Sylius\\Form\\Type\\AlmaGatewayConfigurationType\:\:normalizeConfig\(\) should return array\<string, mixed\> but returns array\<mixed\>\.$#'
+			identifier: return.type
+			count: 1
+			path: src/Form/Type/AlmaGatewayConfigurationType.php
+
+		-
+			message: '#^Offset ''fields'' on array\{fields\: array\<''api_key_live''\|''api_key_test'', string\>, form\: ''alma_sylius\.form…''\|null\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: src/Form/Type/AlmaGatewayConfigurationType.php
+
+		-
+			message: '#^Parameter \#1 \$config of method Alma\\Sylius\\Form\\Type\\AlmaGatewayConfigurationType\:\:refreshFeePlans\(\) expects array\<string, mixed\>, array\<mixed\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Form/Type/AlmaGatewayConfigurationType.php
+
+		-
+			message: '#^Parameter \#1 \$data of method Alma\\Sylius\\Form\\Type\\AlmaGatewayConfigurationType\:\:resolveMerchantId\(\) expects array\<string, mixed\>, array\<mixed\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Form/Type/AlmaGatewayConfigurationType.php
+
+		-
+			message: '#^Parameter \#2 \$displayTexts of method Alma\\Sylius\\Form\\Type\\AlmaGatewayConfigurationType\:\:addDisplayTextFields\(\) expects array\<string, array\<string, array\<string, mixed\>\>\>, array\<mixed\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Form/Type/AlmaGatewayConfigurationType.php
+
+		-
+			message: '#^Parameter \#2 \$feePlans of method Alma\\Sylius\\Form\\Type\\AlmaGatewayConfigurationType\:\:collectOverrides\(\) expects array\<string, array\<string, mixed\>\>, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Form/Type/AlmaGatewayConfigurationType.php
+
+		-
+			message: '#^Parameter \#3 \$overrides of method Alma\\Sylius\\Form\\Type\\AlmaGatewayConfigurationType\:\:addFeePlanOverrideFields\(\) expects array\<string, array\<string, mixed\>\>, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Form/Type/AlmaGatewayConfigurationType.php
+
+		-
+			message: '#^Cannot call method getModel\(\) on mixed\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: src/Payment/Action/AlmaCaptureAction.php
+
+		-
+			message: '#^Parameter \#1 \$url of class Payum\\Core\\Reply\\HttpRedirect constructor expects string, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Payment/Action/AlmaCaptureAction.php
+
+		-
+			message: '#^Parameter \#4 \$syliusOrder of class Alma\\Sylius\\Entity\\AlmaPaymentReference constructor expects Sylius\\Component\\Core\\Model\\OrderInterface, Sylius\\Component\\Core\\Model\\OrderInterface\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Payment/Action/AlmaCaptureAction.php
+
+		-
+			message: '#^Call to function is_string\(\) with string will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: src/ProductWidget/AlmaProductWidgetConfigProvider.php
+
+		-
+			message: '#^Cannot call method getCode\(\) on mixed\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: src/ProductWidget/AlmaProductWidgetConfigProvider.php
+
+		-
+			message: '#^Parameter \#1 \$key of method Doctrine\\Common\\Collections\\ReadableCollection\<\(int\|string\),Sylius\\Component\\Core\\Model\\ChannelPricingInterface\>\:\:get\(\) expects \(int\|string\), mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/ProductWidget/AlmaProductWidgetConfigProvider.php
+
+		-
+			message: '#^Method Alma\\Sylius\\Resolver\\AlmaPaymentMethodResolver\:\:__construct\(\) has parameter \$paymentMethodRepository with generic interface Sylius\\Component\\Payment\\Repository\\PaymentMethodRepositoryInterface but does not specify its types\: T$#'
+			identifier: missingType.generics
+			count: 1
+			path: src/Resolver/AlmaPaymentMethodResolver.php
+
+		-
+			message: '#^Method Alma\\Sylius\\Resolver\\AlmaPaymentMethodResolver\:\:nullableArray\(\) should return array\<string, array\<string, mixed\>\>\|null but returns array\<mixed, mixed\>\|null\.$#'
+			identifier: return.type
+			count: 1
+			path: src/Resolver/AlmaPaymentMethodResolver.php
+
+		-
+			message: '#^Parameter \#1 \$displayTexts of method Alma\\Sylius\\Entity\\AlmaConfiguration\:\:setDisplayTexts\(\) expects array\<string, array\<string, array\<string, mixed\>\>\>\|null, array\<string, array\<string, mixed\>\>\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Resolver/AlmaPaymentMethodResolver.php
+
+		-
+			message: '#^Method Alma\\Sylius\\Twig\\AlmaPaymentGatewaysDecorator\:\:__construct\(\) has parameter \$paymentMethodRepository with generic interface Sylius\\Component\\Payment\\Repository\\PaymentMethodRepositoryInterface but does not specify its types\: T$#'
+			identifier: missingType.generics
+			count: 1
+			path: src/Twig/AlmaPaymentGatewaysDecorator.php
+
+		-
+			message: '#^Method Alma\\Sylius\\Validator\\Constraint\\UniqueAlmaPaymentMethod\:\:getTargets\(\) never returns ''property'' so it can be removed from the return type\.$#'
+			identifier: return.unusedType
+			count: 1
+			path: src/Validator/Constraint/UniqueAlmaPaymentMethod.php
+
+		-
+			message: '#^Method Alma\\Sylius\\Validator\\Constraint\\UniqueAlmaPaymentMethod\:\:getTargets\(\) never returns array\<''class''\|''property''\> so it can be removed from the return type\.$#'
+			identifier: return.unusedType
+			count: 1
+			path: src/Validator/Constraint/UniqueAlmaPaymentMethod.php
+
+		-
+			message: '#^Method Alma\\Sylius\\Validator\\Constraint\\UniqueAlmaPaymentMethodValidator\:\:__construct\(\) has parameter \$paymentMethodRepository with generic interface Sylius\\Component\\Payment\\Repository\\PaymentMethodRepositoryInterface but does not specify its types\: T$#'
+			identifier: missingType.generics
+			count: 1
+			path: src/Validator/Constraint/UniqueAlmaPaymentMethodValidator.php
