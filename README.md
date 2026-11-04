@@ -1,5 +1,7 @@
 # Alma payment plugin for Sylius 2
 
+> ⚠️ **PHP 8.1 and earlier versions are no longer supported by the PHP project and are not recommended by Alma. These versions may contain unpatched security vulnerabilities.**
+
 This plugin adds a new payment method to Sylius 2, which allows you to offer installments payments to your customers using [Alma](https://almapay.com).
 
 ## Requirements
