@@ -1,5 +1,6 @@
-# When a release PR synced from the private repository is merged, publishes
-# the release, whose tag Packagist reads.
+# When a release PR synced from the private repository is merged, drafts the
+# release. It is published by hand once the merge commit is tested: its tag
+# is what Packagist reads.
 name: Release
 
 on:
@@ -45,8 +46,8 @@ jobs:
           fi
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
 
-      # The tag on the merge commit is what Packagist reads
-      - name: Publish the release
+      # The tag is only created at publish time: pin it to the tested commit
+      - name: Draft the release
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ steps.notes.outputs.tag }}
@@ -55,5 +56,6 @@ jobs:
           gh release create "$TAG" \
             --target "$TARGET" \
             --title "$TAG" \
-            --notes-file release-notes.md
+            --notes-file release-notes.md \
+            --draft
 
