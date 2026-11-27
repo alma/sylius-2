@@ -15,7 +15,8 @@ use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 
 /**
  * Cancel route hit by the customer's browser after they trigger the cancel
- * button on Alma's hosted page. Aligned on the Sylius native pattern: only the
+ * button on Alma's hosted page, or after Alma's In-Page modal rejects a payment
+ * (registered as its failure return URL). Aligned on the Sylius native pattern: only the
  * Sylius Payment is transitioned to `cancelled`; the Order and the active cart
  * are not touched, so the customer can retry payment (Alma or another method)
  * from `sylius_shop_order_show` — same target Sylius PayPal/Mollie redirect to
@@ -50,8 +51,15 @@ final class PaymentCancelController
             return $this->redirectGenericError();
         }
 
-        $this->cancellationHelper->cancel($resolved);
-        $this->addFlash('info', 'alma_sylius.flash.payment_cancelled');
+        if ($resolved->reference?->isInPage() === true) {
+            // Alma's In-Page modal sends a rejected payment here (failure return
+            // URL): the Sylius Payment stays `new` so the order page offers Alma
+            // or another method again (cf. specs-sylius/in-page).
+            $this->addFlash('error', 'alma_sylius.flash.payment_not_accepted');
+        } else {
+            $this->cancellationHelper->cancel($resolved);
+            $this->addFlash('info', 'alma_sylius.flash.payment_cancelled');
+        }
 
         return new RedirectResponse($this->urlGenerator->generate(
             'sylius_shop_order_show',

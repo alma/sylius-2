@@ -6,7 +6,6 @@ namespace Alma\Sylius\Api;
 
 use Alma\Client\Application\ClientConfiguration;
 use Alma\Client\Domain\ValueObject\Environment;
-use Composer\InstalledVersions;
 use Sylius\Bundle\CoreBundle\SyliusCoreBundle;
 
 /**
@@ -16,24 +15,13 @@ use Sylius\Bundle\CoreBundle\SyliusCoreBundle;
  */
 final class ClientConfigurationFactory
 {
-    private const PLUGIN_PACKAGE = 'alma/sylius-2-payment';
-
     public function make(string $apiKey, string $mode): ClientConfiguration
     {
         $environment = new Environment($mode === 'live' ? Environment::LIVE_MODE : Environment::TEST_MODE);
         $configuration = new ClientConfiguration($apiKey, $environment);
         $configuration->addUserAgentComponent('Sylius', SyliusCoreBundle::VERSION);
-        $configuration->addUserAgentComponent('Alma for Sylius2', $this->pluginVersion());
+        $configuration->addUserAgentComponent('Alma for Sylius2', PackageVersions::plugin());
 
         return $configuration;
-    }
-
-    private function pluginVersion(): string
-    {
-        if (!InstalledVersions::isInstalled(self::PLUGIN_PACKAGE)) {
-            return 'dev';
-        }
-
-        return InstalledVersions::getPrettyVersion(self::PLUGIN_PACKAGE) ?? 'dev';
     }
 }

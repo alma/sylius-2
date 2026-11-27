@@ -7,14 +7,37 @@ alma_sylius:
             api_mode: API mode
             merchant_id: Merchant identifier
             product_widget_enabled: Display the Alma widget on the product page
+            in_page_enabled: In-Page payment
+            in_page_enabled_help: The customer pays in an Alma window opened over your shop, without being redirected to Alma's payment page.
+            unified_payment_button_enabled: Unified payment button
+            unified_payment_button_enabled_help: The checkout shows a single Alma entry, and the customer chooses their plan on Alma's payment page.
+            payment_flow:
+                title: Payment flow
+                description: These settings decide how the customer pays with Alma.
             mode:
                 live: Live
                 test: Test
+            cart_widget:
+                enabled: Display the Alma widget on the cart page
+                position:
+                    label: Position on the cart page
+                    after_summary: Below the cart summary, before the checkout button
+                    before_summary: Above the cart summary
+                    after_checkout_button: Below the checkout button
+                    after_items: Below the list of items
+                show_if_not_eligible: Show the widget even when the cart is not eligible
+                monochrome: Monochrome
+                hide_border: Hide the border
+                transition_delay: Delay between plans (ms)
+                transition_delay_help: Time each plan stays highlighted in the animation; -1 stops the animation.
             display:
                 section_title: Display
                 widget:
                     title: Product widget
                     description: Show the Alma installments preview on the product page.
+                cart_widget:
+                    title: Cart widget
+                    description: Show the Alma installments preview on the cart page, at the chosen position.
                 checkout:
                     title: Checkout personalization
                     description: Customize the title and the description shown for each Alma payment group at checkout, for each store locale.
@@ -36,10 +59,24 @@ alma_sylius:
                     credit:
                         name: Credit
                         definition: More than 4 installments
+                    unified_payment_button:
+                        name: Unified payment button
+                        definition: Single Alma entry, the plan is chosen on Alma
+            exclusion:
+                section_title: Excluded categories
+                terms: Some products (gift cards, license keys, software, weapons, etc.) cannot be sold with Alma, as per its terms.
+                taxons: Categories excluded from Alma
+                message:
+                    title: Exclusion message
+                    description: Shown in place of the Alma widget on the page of a product from an excluded category, for each store locale.
+                column:
+                    locale: Locale
+                    message: Message
         error:
             api_key_invalid: This API key is invalid or unreachable.
             merchant_cannot_create_payments: This account is not allowed to create payments.
             cross_keys_merchant_mismatch: Test and Live keys must belong to the same Alma account.
+            unified_payment_button_requires_off_site: The unified payment button requires In-Page payment to be turned off.
     fee_plan:
         section_title: Payment plans
         empty_state: Configure a key to display the plans.
@@ -58,6 +95,17 @@ alma_sylius:
             range_clamped: "Override for plan %plan% was out of the API range, clamped to %value%."
     gateway:
         label: Alma
+    admin_order:
+        title: Alma payments
+        payment_id: Alma payment
+        plan: Plan
+        mode: Mode
+        paid: Paid
+        paid_yes: Paid
+        paid_no: Not paid
+        paid_the_order: Paid the order
+    exclusion:
+        default_message: "Payment with Alma is not available for this purchase."
     checkout:
         customer_fee: Customer fee
         no_customer_fee: Free of charge
@@ -72,6 +120,8 @@ alma_sylius:
                 title: Pay later
             credit:
                 title: Spread your payment
+        unified_payment_button:
+            title: Pay with Alma
         button:
             installments: "%count%x"
             deferred_days: "+%count%d"

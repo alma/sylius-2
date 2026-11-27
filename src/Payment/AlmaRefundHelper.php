@@ -13,25 +13,13 @@ use Psr\Log\NullLogger;
 use Sylius\Component\Core\Model\PaymentInterface as SyliusPaymentInterface;
 
 /**
- * Synchronously calls Alma's PaymentEndpoint::refund() server-to-server, then
- * persists a local refund record on the Sylius Payment's details JSON.
- *
- * At MVP this helper supports **full refund only**, aligned on the Sylius
- * native state machine (transition `sylius_payment.refund` is terminal). The
- * RefundDto sent to Alma always omits `amount`. Partial / multi refunds would
- * require sylius/refund-plugin — out of MVP scope.
- *
- * Pessimistic failure policy: callers MUST invoke this helper BEFORE the CMS
- * commits its refund. Any PaymentEndpointException propagates out — the
- * caller's transaction is aborted, the CMS-side refund is not committed.
- *
- * The persisted Alma mode (from {@see \Alma\Sylius\Entity\AlmaPaymentReference})
- * is used to pick the API key, not the currently active global mode. This
- * upholds the contract acted in the `payment-creation` spec.
+ * Callers invoke it before Sylius commits its refund, so that an Alma failure
+ * (the exception propagates) rolls the Sylius refund back.
  */
 class AlmaRefundHelper
 {
-    public const FULL_COMMENT = 'Full refund from Sylius plugin';
+    public const FULL_COMMENT = 'Full refund from Alma plugin';
+    public const PARTIAL_COMMENT = 'Partial refund from Alma plugin';
 
     public function __construct(
         private readonly AlmaPaymentReferenceRepository $referenceRepository,
@@ -41,7 +29,10 @@ class AlmaRefundHelper
     ) {
     }
 
-    public function refund(SyliusPaymentInterface $payment): void
+    /**
+     * @param int|null $amount in cents; null refunds whatever is left
+     */
+    public function refund(SyliusPaymentInterface $payment, ?int $amount = null): void
     {
         $details = $payment->getDetails();
         $almaPaymentId = $details[AlmaPaymentDetailsKeys::PAYMENT_ID] ?? null;
@@ -55,23 +46,47 @@ class AlmaRefundHelper
         }
 
         $persistedMode = $reference->getAlmaMode();
-        $apiKey = $this->configurationResolver->getApiKeyByMode($persistedMode);
+        $apiKey = $this->configurationResolver->getApiKeyOfOrder($reference->getSyliusOrder(), $persistedMode);
         if ($apiKey === null) {
             throw new \LogicException(sprintf('Cannot refund Alma payment: persisted mode "%s" has no API key configured.', $persistedMode));
         }
 
         $order = $reference->getSyliusOrder();
-        $dto = (new RefundDto())
+        $alreadyRefunded = (int) ($details[AlmaPaymentDetailsKeys::AMOUNT_REFUNDED] ?? 0);
+        $remainder = $order->getTotal() - $alreadyRefunded;
+        $isFull = $amount === null || $amount === $remainder;
+        $refundedAmount = $isFull ? $remainder : $amount;
+        $comment = $isFull ? self::FULL_COMMENT : self::PARTIAL_COMMENT;
+
+        $refundDto = (new RefundDto())
             ->setMerchantReference((string) $order->getNumber())
-            ->setComment(self::FULL_COMMENT);
-        // No setAmount(): MVP = full refund only, conformément à Sylius native
-        // state machine (transition refund terminale).
+            ->setComment($comment);
+        // Alma refunds whatever is left on the payment when no amount is set.
+        if (!$isFull) {
+            $refundDto->setAmount($refundedAmount);
+        }
 
-        $this->endpointFactory->make($apiKey, $persistedMode)->refund($almaPaymentId, $dto);
+        try {
+            $almaPayment = $this->endpointFactory->make($apiKey, $persistedMode)->refund($almaPaymentId, $refundDto);
+        } catch (\Throwable $almaFailure) {
+            $this->logger->error('alma.refund.failed', [
+                'payment_id' => $payment->getId(),
+                'order_number' => $order->getNumber(),
+                'alma_payment_id' => $almaPaymentId,
+                'mode' => $persistedMode,
+                'amount' => $refundedAmount,
+                'error' => $almaFailure::class,
+            ]);
 
-        $details[AlmaPaymentDetailsKeys::REFUND_AMOUNT] = $order->getTotal();
-        $details[AlmaPaymentDetailsKeys::REFUND_COMMENT] = self::FULL_COMMENT;
-        $details[AlmaPaymentDetailsKeys::REFUND_AT] = (new \DateTimeImmutable('now'))->format(\DateTimeImmutable::ATOM);
+            throw $almaFailure;
+        }
+
+        $details[AlmaPaymentDetailsKeys::AMOUNT_REFUNDED] = $almaPayment->getAmountRefunded();
+        $details[AlmaPaymentDetailsKeys::REFUNDS][] = [
+            'amount' => $refundedAmount,
+            'comment' => $comment,
+            'refunded_at' => (new \DateTimeImmutable('now'))->format(\DateTimeImmutable::ATOM),
+        ];
         $payment->setDetails($details);
 
         $this->logger->info('alma.refund.completed', [
@@ -79,6 +94,7 @@ class AlmaRefundHelper
             'order_number' => $order->getNumber(),
             'alma_payment_id' => $almaPaymentId,
             'mode' => $persistedMode,
+            'amount' => $refundedAmount,
         ]);
     }
 }

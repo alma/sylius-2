@@ -6,22 +6,6 @@ namespace Alma\Sylius\Payment;
 
 use Alma\Client\Domain\Entity\Payment as AlmaPayment;
 
-/**
- * Performs the four anti-fraud checks mandated by the customer-return
- * Requirement "Anti-fraud checks before any state transition" before any
- * payment-related state transition. Reusable by both the return controller
- * (E2) and the IPN handler (F2/F4).
- *
- * Checks (short-circuit on first failure) :
- *  1. pid : the Alma payment id matches the one persisted on the order's Sylius
- *     Payment (defensive — the AlmaPaymentResolver also enforces this).
- *  2. amount : the Alma `purchase_amount` (cents) equals the Sylius order total.
- *  3. processing_status : maps to PHP client v3 `Payment::getProcessingStatus()`
- *     and MUST be in {authorized, captured}. Anything else (including null,
- *     awaiting_authorization, canceled, or unknown) → state_error mismatch.
- *  4. expiration : `expiredAt` is either null (no expiration set) or strictly
- *     in the future.
- */
 class AlmaFraudChecker
 {
     private const ACCEPTED_PROCESSING_STATUSES = [
@@ -35,7 +19,12 @@ class AlmaFraudChecker
         $order = $resolved->order;
         $syliusPayment = $resolved->syliusPayment;
 
-        $storedPid = $syliusPayment->getDetails()[AlmaPaymentDetailsKeys::PAYMENT_ID] ?? null;
+        // The resolver found the order through this pid, so this check cannot
+        // fail on a resolved payment: the guard against another order's pid is
+        // the resolver's `custom_data.order_id` cross-check.
+        $storedPid = $resolved->reference !== null && $resolved->reference->getSyliusOrder() === $order
+            ? $resolved->reference->getAlmaPaymentId()
+            : $syliusPayment->getDetails()[AlmaPaymentDetailsKeys::PAYMENT_ID] ?? null;
         if ($storedPid !== $almaPayment->getId()) {
             return AlmaFraudCheckResult::fail(AlmaFraudCheckResult::REASON_PID_MISMATCH);
         }

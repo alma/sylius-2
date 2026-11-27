@@ -11,8 +11,14 @@
 {% set choice_field = payment_form.details.alma_fee_plan_key|default(null) %}
 {% set order = payment_form.vars.data.order|default(null) %}
 
-{% if choice_field is not null and order is not null %}
+{% set unified_payment_button = order is not null ? alma_unified_payment_button(order) : null %}
+
+{% if unified_payment_button is not null %}
+    {% include '@AlmaSyliusPlugin/Shop/checkout/unified_payment_button.html.twig' %}
+{% elseif choice_field is not null and order is not null %}
     {% set groups = alma_eligibility_groups(order) %}
+    {# In-Page flow: the Alma frame of the checked plan replaces the schedule and fee line. #}
+    {% set in_page_settings = alma_in_page_frame_settings(order) %}
 
     {# Placeholder pseudo-child (ChoiceType required=false) has empty value:
        excluded here so no button or auto-select can ever submit an empty key. #}
@@ -23,7 +29,16 @@
         {% endif %}
     {% endfor %}
 
-    <div class="alma-fee-plans mt-3" data-alma-method-code="{{ payment_method.code }}" role="radiogroup" aria-label="{{ 'alma_sylius.checkout.groups_aria_label'|trans }}">
+    {% set in_page_plans = {} %}
+    {% if in_page_settings is not null %}
+        {% for planKey, radioId in radio_ids %}
+            {% set in_page_plans = in_page_plans|merge({(radioId): alma_in_page_plan_settings(planKey)}) %}
+        {% endfor %}
+        {% include '@AlmaSyliusPlugin/Shop/in_page/script.html.twig' %}
+    {% endif %}
+
+    <div class="alma-fee-plans mt-3" data-alma-method-code="{{ payment_method.code }}" role="radiogroup" aria-label="{{ 'alma_sylius.checkout.groups_aria_label'|trans }}"
+        {%- if in_page_settings is not null %} data-alma-in-page="{{ in_page_settings|json_encode }}" data-alma-in-page-plans="{{ in_page_plans|json_encode }}"{% endif %}>
         {% for view in groups %}
             {% set group_plans = view.plans|filter(plan => radio_ids[plan.planKey] is defined) %}
             {% if group_plans is not empty %}
@@ -43,13 +58,19 @@
                             <div class="alma-group__buttons">
                                 {% for plan in group_plans %}
                                     <button type="button" class="alma-plan-btn" data-alma-plan-target="{{ radio_ids[plan.planKey] }}" aria-pressed="false">
-                                        {{- plan.buttonLabelKey|trans(plan.buttonLabelParams) -}}
+                                        <span class="alma-plan-btn__label">{{ plan.buttonLabelKey|trans(plan.buttonLabelParams) }}</span>
+                                        <img class="alma-plan-btn__logo" src="{{ asset('bundles/almasyliusplugin/images/alma-logo-white.svg') }}" alt="">
                                     </button>
                                 {% endfor %}
                             </div>
                         {% endif %}
 
-                        {% if view.group.showsSchedule or view.group.showsFeeLine %}
+                        {% if in_page_settings is not null %}
+                            {% if view.group.showsInPageFrame %}
+                                {# Kept out of the Live Component's DOM morphing: the frame survives re-renders. #}
+                                <div class="alma-in-page-frame" id="alma-in-page-frame-{{ payment_method.code }}-{{ view.group.value }}" data-alma-in-page-frame data-live-ignore></div>
+                            {% endif %}
+                        {% elseif view.group.showsSchedule or view.group.showsFeeLine %}
                             {% for plan in group_plans %}
                                 <div class="alma-plan-detail" hidden data-alma-plan-detail="{{ radio_ids[plan.planKey] }}">
                                     {% if view.group.showsSchedule and plan.scheduleRows is not empty %}
@@ -177,6 +198,78 @@
                             detail.hidden = detail.dataset.almaPlanDetail !== checkedId;
                         });
                     });
+                });
+
+                reconcileInPageFrame();
+            }
+
+            // In-Page flow: one Alma frame at most, for the checked plan radio,
+            // in the frame slot of its group. The slot is ignored by the Live
+            // Component morphing, so a re-render keeps the mounted frame.
+            var inPageFrame = window.__almaInPageFrame = window.__almaInPageFrame || {
+                key: null,
+                slotId: null,
+                instance: null,
+                pending: false
+            };
+
+            function desiredInPageFrame() {
+                var wrapper = document.querySelector('.alma-fee-plans[data-alma-in-page]');
+                if (!wrapper) {
+                    return null;
+                }
+                var settings = JSON.parse(wrapper.dataset.almaInPage);
+                var planSettings = JSON.parse(wrapper.dataset.almaInPagePlans || '{}');
+                var desired = null;
+                wrapper.querySelectorAll('[data-alma-group]').forEach(function (g) {
+                    var frameSlot = g.querySelector('[data-alma-in-page-frame]');
+                    planIds(g).forEach(function (id) {
+                        var radio = document.getElementById(id);
+                        if (!frameSlot || !radio || !radio.checked || !planSettings[id]) {
+                            return;
+                        }
+                        desired = {
+                            key: frameSlot.id + '|' + radio.value,
+                            slot: frameSlot,
+                            options: Object.assign({}, settings, planSettings[id], { selector: '#' + frameSlot.id })
+                        };
+                    });
+                });
+
+                return desired;
+            }
+
+            function reconcileInPageFrame() {
+                var desired = desiredInPageFrame();
+                var mountedSlot = inPageFrame.slotId ? document.getElementById(inPageFrame.slotId) : null;
+                var stillMounted = mountedSlot !== null && mountedSlot.childElementCount > 0;
+                if (desired && desired.key === inPageFrame.key && (stillMounted || inPageFrame.pending)) {
+                    return;
+                }
+
+                if (inPageFrame.instance) {
+                    inPageFrame.instance.unmount();
+                }
+                inPageFrame.instance = null;
+                inPageFrame.key = null;
+                inPageFrame.slotId = null;
+                inPageFrame.pending = false;
+                document.querySelectorAll('[data-alma-in-page-frame]').forEach(function (frameSlot) {
+                    frameSlot.replaceChildren();
+                });
+                if (!desired || !window.almaInPageLoaded) {
+                    return;
+                }
+
+                inPageFrame.key = desired.key;
+                inPageFrame.slotId = desired.slot.id;
+                inPageFrame.pending = true;
+                window.almaInPageLoaded.then(function (Alma) {
+                    if (inPageFrame.key !== desired.key || inPageFrame.instance) {
+                        return;
+                    }
+                    inPageFrame.pending = false;
+                    inPageFrame.instance = Alma.InPage.initialize(desired.options);
                 });
             }
 

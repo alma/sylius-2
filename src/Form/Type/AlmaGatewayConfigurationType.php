@@ -9,10 +9,13 @@ use Alma\Sylius\Api\ApiKeyValidationResult;
 use Alma\Sylius\Api\ApiKeyValidator;
 use Alma\Sylius\Api\FeePlansFetcher;
 use Alma\Sylius\Api\FeePlansFetchFailedException;
+use Alma\Sylius\CartWidget\CartWidgetPosition;
 use Alma\Sylius\Checkout\GroupDisplayTextsResolver;
 use Alma\Sylius\Checkout\PlanGroup;
 use Alma\Sylius\Entity\AlmaConfiguration;
+use Alma\Sylius\Exclusion\ExclusionMessageResolver;
 use Sylius\Component\Locale\Provider\LocaleProviderInterface;
+use Sylius\Component\Payment\Model\GatewayConfigInterface;
 use Symfony\Component\Form\AbstractType;
 use Symfony\Component\Form\Extension\Core\Type\CheckboxType;
 use Symfony\Component\Form\Extension\Core\Type\ChoiceType;
@@ -26,6 +29,7 @@ use Symfony\Component\Form\FormInterface;
 use Symfony\Component\Form\FormView;
 use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Component\OptionsResolver\OptionsResolver;
+use Symfony\Component\Validator\Constraints\GreaterThanOrEqual;
 use Symfony\Component\Validator\Constraints\Length;
 use Symfony\Component\Validator\Constraints\NotBlank;
 use Symfony\Contracts\Translation\TranslatorInterface;
@@ -72,6 +76,7 @@ final class AlmaGatewayConfigurationType extends AbstractType
         private readonly RequestStack $requestStack,
         private readonly GroupDisplayTextsResolver $displayTextsResolver,
         private readonly LocaleProviderInterface $localeProvider,
+        private readonly ExclusionMessageResolver $exclusionMessageResolver,
     ) {
     }
 
@@ -101,9 +106,61 @@ final class AlmaGatewayConfigurationType extends AbstractType
                 'expanded' => false,
                 'multiple' => false,
             ])
+            ->add('in_page_enabled', CheckboxType::class, [
+                'required' => false,
+                'label' => 'alma_sylius.form.configuration.in_page_enabled',
+                'help' => 'alma_sylius.form.configuration.in_page_enabled_help',
+            ])
+            ->add('unified_payment_button_enabled', CheckboxType::class, [
+                'required' => false,
+                'label' => 'alma_sylius.form.configuration.unified_payment_button_enabled',
+                'help' => 'alma_sylius.form.configuration.unified_payment_button_enabled_help',
+            ])
             ->add('product_widget_enabled', CheckboxType::class, [
                 'required' => false,
                 'label' => 'alma_sylius.form.configuration.product_widget_enabled',
+            ])
+            ->add('cart_widget_enabled', CheckboxType::class, [
+                'required' => false,
+                'label' => 'alma_sylius.form.configuration.cart_widget.enabled',
+            ])
+            ->add('cart_widget_position', ChoiceType::class, [
+                'label' => 'alma_sylius.form.configuration.cart_widget.position.label',
+                'choices' => array_combine(
+                    array_map(
+                        static fn (string $position): string => 'alma_sylius.form.configuration.cart_widget.position.' . $position,
+                        CartWidgetPosition::ALL,
+                    ),
+                    CartWidgetPosition::ALL,
+                ),
+                'empty_data' => CartWidgetPosition::DEFAULT,
+            ])
+            ->add('cart_widget_monochrome', CheckboxType::class, [
+                'required' => false,
+                'label' => 'alma_sylius.form.configuration.cart_widget.monochrome',
+            ])
+            ->add('cart_widget_hide_border', CheckboxType::class, [
+                'required' => false,
+                'label' => 'alma_sylius.form.configuration.cart_widget.hide_border',
+            ])
+            ->add('cart_widget_transition_delay', IntegerType::class, [
+                'label' => 'alma_sylius.form.configuration.cart_widget.transition_delay',
+                'help' => 'alma_sylius.form.configuration.cart_widget.transition_delay_help',
+                'attr' => ['min' => AlmaConfiguration::MIN_CART_WIDGET_TRANSITION_DELAY, 'step' => 1],
+                'invalid_message' => 'alma_sylius.form.error.cart_widget_transition_delay',
+                'empty_data' => (string) AlmaConfiguration::DEFAULT_CART_WIDGET_TRANSITION_DELAY,
+                // The PaymentMethod admin form validates the `sylius` group only.
+                'constraints' => [
+                    new GreaterThanOrEqual(
+                        value: AlmaConfiguration::MIN_CART_WIDGET_TRANSITION_DELAY,
+                        message: 'alma_sylius.form.error.cart_widget_transition_delay',
+                        groups: ['Default', 'sylius'],
+                    ),
+                ],
+            ])
+            ->add('cart_widget_show_if_not_eligible', CheckboxType::class, [
+                'required' => false,
+                'label' => 'alma_sylius.form.configuration.cart_widget.show_if_not_eligible',
             ])
         ;
 
@@ -115,6 +172,11 @@ final class AlmaGatewayConfigurationType extends AbstractType
                     $config['api_mode'] = AlmaConfiguration::MODE_TEST;
                 }
                 $config['product_widget_enabled'] = (bool) ($config['product_widget_enabled'] ?? true);
+                $config['in_page_enabled'] = \array_key_exists('in_page_enabled', $config)
+                    ? $config['in_page_enabled'] === true
+                    : $this->isCreationForm($event->getForm());
+                $config['unified_payment_button_enabled'] = ($config['unified_payment_button_enabled'] ?? false) === true;
+                $config = $this->withCartWidgetDefaults($config);
                 $previousConfig = $config;
 
                 $latestFeePlans = $this->refreshFeePlans($config);
@@ -129,6 +191,11 @@ final class AlmaGatewayConfigurationType extends AbstractType
                 $this->addDisplayTextFields(
                     $event->getForm(),
                     \is_array($config['display_texts'] ?? null) ? $config['display_texts'] : [],
+                );
+
+                $this->addExclusionMessageFields(
+                    $event->getForm(),
+                    \is_array($config['exclusion_messages'] ?? null) ? $config['exclusion_messages'] : [],
                 );
 
                 $event->setData($config);
@@ -246,6 +313,7 @@ final class AlmaGatewayConfigurationType extends AbstractType
 
                 $data['fee_plan_overrides'] = $overrides;
                 $data['display_texts'] = $this->collectDisplayTexts($event->getForm());
+                $data['exclusion_messages'] = $this->collectExclusionMessages($event->getForm());
                 $deferredFlash = $warnings;
 
                 $event->setData($data);
@@ -267,6 +335,11 @@ final class AlmaGatewayConfigurationType extends AbstractType
                     $form->addError(new FormError($this->translator->trans($deferredErrors['form'])));
                 }
 
+                $data = $form->getData();
+                if (($data['in_page_enabled'] ?? false) === true && ($data['unified_payment_button_enabled'] ?? false) === true) {
+                    $form->addError(new FormError($this->translator->trans('alma_sylius.form.error.unified_payment_button_requires_off_site')));
+                }
+
                 if ($deferredFlash !== []) {
                     $session = $this->requestStack->getSession();
                     foreach ($deferredFlash as $flash) {
@@ -280,10 +353,7 @@ final class AlmaGatewayConfigurationType extends AbstractType
     public function buildView(FormView $view, FormInterface $form, array $options): void
     {
         $view->vars['display_locales'] = $this->localeProvider->getAvailableLocalesCodes();
-        $view->vars['display_groups'] = array_map(
-            static fn (PlanGroup $group): string => $group->value,
-            PlanGroup::cases(),
-        );
+        $view->vars['display_groups'] = $this->displaySlots();
     }
 
     public function configureOptions(OptionsResolver $resolver): void
@@ -293,6 +363,18 @@ final class AlmaGatewayConfigurationType extends AbstractType
             'empty_data' => static fn (): array => [],
             'label' => false,
         ]);
+    }
+
+    /**
+     * Sylius has no installation record besides the Alma PaymentMethod itself:
+     * only its creation form stands for a new installation. A persisted config
+     * missing the key was saved before the setting existed and stays off-site.
+     */
+    private function isCreationForm(FormInterface $form): bool
+    {
+        $gatewayConfig = $form->getParent()?->getData();
+
+        return $gatewayConfig instanceof GatewayConfigInterface && $gatewayConfig->getId() === null;
     }
 
     /**
@@ -385,10 +467,12 @@ final class AlmaGatewayConfigurationType extends AbstractType
     private function addDisplayTextFields(FormInterface $form, array $displayTexts): void
     {
         foreach ($this->localeProvider->getAvailableLocalesCodes() as $locale) {
-            foreach (PlanGroup::cases() as $group) {
-                $text = $this->displayTextsResolver->resolve($displayTexts, $group, $locale);
+            foreach ($this->displaySlots() as $slot) {
+                $text = $slot === GroupDisplayTextsResolver::UNIFIED_PAYMENT_BUTTON
+                    ? $this->displayTextsResolver->resolveUnifiedPaymentButton($displayTexts, $locale)
+                    : $this->displayTextsResolver->resolve($displayTexts, PlanGroup::from($slot), $locale);
 
-                $form->add(sprintf('display_title__%s__%s', $group->value, $locale), TextType::class, [
+                $form->add(sprintf('display_title__%s__%s', $slot, $locale), TextType::class, [
                     'mapped' => false,
                     'required' => true,
                     'data' => $text->title,
@@ -399,7 +483,7 @@ final class AlmaGatewayConfigurationType extends AbstractType
                     ],
                     'attr' => ['maxlength' => self::DISPLAY_TITLE_MAX_LENGTH],
                 ]);
-                $form->add(sprintf('display_description__%s__%s', $group->value, $locale), TextType::class, [
+                $form->add(sprintf('display_description__%s__%s', $slot, $locale), TextType::class, [
                     'mapped' => false,
                     'required' => false,
                     'data' => $text->description,
@@ -417,6 +501,17 @@ final class AlmaGatewayConfigurationType extends AbstractType
     }
 
     /**
+     * @return list<string>
+     */
+    private function displaySlots(): array
+    {
+        return [
+            ...array_map(static fn (PlanGroup $group): string => $group->value, PlanGroup::cases()),
+            GroupDisplayTextsResolver::UNIFIED_PAYMENT_BUTTON,
+        ];
+    }
+
+    /**
      * @return array<string, array<string, array{title: string, description: string|null}>>
      */
     private function collectDisplayTexts(FormInterface $form): array
@@ -424,15 +519,15 @@ final class AlmaGatewayConfigurationType extends AbstractType
         $texts = [];
 
         foreach ($this->localeProvider->getAvailableLocalesCodes() as $locale) {
-            foreach (PlanGroup::cases() as $group) {
-                $titleField = sprintf('display_title__%s__%s', $group->value, $locale);
+            foreach ($this->displaySlots() as $slot) {
+                $titleField = sprintf('display_title__%s__%s', $slot, $locale);
                 if (!$form->has($titleField)) {
                     continue;
                 }
 
-                $description = trim((string) $form->get(sprintf('display_description__%s__%s', $group->value, $locale))->getData());
+                $description = trim((string) $form->get(sprintf('display_description__%s__%s', $slot, $locale))->getData());
 
-                $texts[$locale][$group->value] = [
+                $texts[$locale][$slot] = [
                     'title' => trim((string) $form->get($titleField)->getData()),
                     'description' => $description === '' ? null : $description,
                 ];
@@ -440,6 +535,42 @@ final class AlmaGatewayConfigurationType extends AbstractType
         }
 
         return $texts;
+    }
+
+    /**
+     * @param array<string, mixed> $exclusionMessages
+     */
+    private function addExclusionMessageFields(FormInterface $form, array $exclusionMessages): void
+    {
+        foreach ($this->localeProvider->getAvailableLocalesCodes() as $locale) {
+            $form->add('exclusion_message__' . $locale, TextType::class, [
+                'mapped' => false,
+                'required' => true,
+                'data' => $this->exclusionMessageResolver->resolve($exclusionMessages, $locale),
+                'label' => false,
+                // The PaymentMethod admin form validates the `sylius` group only.
+                'constraints' => [
+                    new NotBlank(message: 'alma_sylius.form.error.exclusion_message_required', groups: ['Default', 'sylius']),
+                ],
+            ]);
+        }
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function collectExclusionMessages(FormInterface $form): array
+    {
+        $messages = [];
+
+        foreach ($this->localeProvider->getAvailableLocalesCodes() as $locale) {
+            $field = 'exclusion_message__' . $locale;
+            if ($form->has($field)) {
+                $messages[$locale] = trim((string) $form->get($field)->getData());
+            }
+        }
+
+        return $messages;
     }
 
     private function messageForError(?ApiKeyValidationError $error): string
@@ -549,5 +680,26 @@ final class AlmaGatewayConfigurationType extends AbstractType
         ]);
 
         return [$clamped, $message];
+    }
+
+    /**
+     * @param array<string, mixed> $config
+     *
+     * @return array<string, mixed>
+     */
+    private function withCartWidgetDefaults(array $config): array
+    {
+        $config['cart_widget_enabled'] = (bool) ($config['cart_widget_enabled'] ?? true);
+        if (!\in_array($config['cart_widget_position'] ?? null, CartWidgetPosition::ALL, true)) {
+            $config['cart_widget_position'] = CartWidgetPosition::DEFAULT;
+        }
+        $config['cart_widget_monochrome'] = (bool) ($config['cart_widget_monochrome'] ?? true);
+        $config['cart_widget_hide_border'] = (bool) ($config['cart_widget_hide_border'] ?? false);
+        if (!\is_int($config['cart_widget_transition_delay'] ?? null)) {
+            $config['cart_widget_transition_delay'] = AlmaConfiguration::DEFAULT_CART_WIDGET_TRANSITION_DELAY;
+        }
+        $config['cart_widget_show_if_not_eligible'] = (bool) ($config['cart_widget_show_if_not_eligible'] ?? true);
+
+        return $config;
     }
 }

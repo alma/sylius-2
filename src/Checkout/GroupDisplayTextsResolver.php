@@ -27,14 +27,38 @@ final class GroupDisplayTextsResolver
     ) {
     }
 
+    public const UNIFIED_PAYMENT_BUTTON = 'unified_payment_button';
+
     /**
      * @param array<string, array<string, array<string, mixed>>> $displayTexts
      */
     public function resolve(array $displayTexts, PlanGroup $group, string $locale): GroupDisplayText
     {
-        $entry = $displayTexts[$locale][$group->value] ?? null;
+        return $this->resolveSlot($displayTexts, $group->value, $group->titleKey(), $group->subtitleKey(), $locale);
+    }
+
+    /**
+     * @param array<string, array<string, array<string, mixed>>> $displayTexts
+     */
+    public function resolveUnifiedPaymentButton(array $displayTexts, string $locale): GroupDisplayText
+    {
+        return $this->resolveSlot(
+            $displayTexts,
+            self::UNIFIED_PAYMENT_BUTTON,
+            'alma_sylius.checkout.unified_payment_button.title',
+            'alma_sylius.checkout.unified_payment_button.subtitle',
+            $locale,
+        );
+    }
+
+    /**
+     * @param array<string, array<string, array<string, mixed>>> $displayTexts
+     */
+    private function resolveSlot(array $displayTexts, string $slot, string $titleKey, string $subtitleKey, string $locale): GroupDisplayText
+    {
+        $entry = $displayTexts[$locale][$slot] ?? null;
         if (!\is_array($entry)) {
-            $entry = $this->englishEntry($displayTexts, $group);
+            $entry = $this->englishEntry($displayTexts, $slot);
         }
 
         if ($entry !== null) {
@@ -45,8 +69,8 @@ final class GroupDisplayTextsResolver
         }
 
         return new GroupDisplayText(
-            $this->trans($group->titleKey(), $locale),
-            $this->defaultDescription($group, $locale),
+            $this->trans($titleKey, $locale),
+            $this->defaultDescription($subtitleKey, $locale),
         );
     }
 
@@ -55,14 +79,13 @@ final class GroupDisplayTextsResolver
      * fact (canonical checkout spec: default wording changes go through the
      * translation catalog): no subtitle entry in any catalog means no default.
      */
-    private function defaultDescription(PlanGroup $group, string $locale): ?string
+    private function defaultDescription(string $subtitleKey, string $locale): ?string
     {
-        $key = $group->subtitleKey();
-        if (!$this->isCovered($key, $locale) && !$this->isCovered($key, self::FALLBACK_LOCALE)) {
+        if (!$this->isCovered($subtitleKey, $locale) && !$this->isCovered($subtitleKey, self::FALLBACK_LOCALE)) {
             return null;
         }
 
-        return $this->trans($key, $locale);
+        return $this->trans($subtitleKey, $locale);
     }
 
     /**
@@ -70,14 +93,14 @@ final class GroupDisplayTextsResolver
      *
      * @return array<string, mixed>|null
      */
-    private function englishEntry(array $displayTexts, PlanGroup $group): ?array
+    private function englishEntry(array $displayTexts, string $slot): ?array
     {
-        foreach ($displayTexts as $locale => $groups) {
+        foreach ($displayTexts as $locale => $slots) {
             if (!str_starts_with(strtolower((string) $locale), self::FALLBACK_LOCALE)) {
                 continue;
             }
-            if (\is_array($groups[$group->value] ?? null)) {
-                return $groups[$group->value];
+            if (\is_array($slots[$slot] ?? null)) {
+                return $slots[$slot];
             }
         }
 

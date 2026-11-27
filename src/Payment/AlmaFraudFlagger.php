@@ -11,6 +11,7 @@ use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use Sylius\Abstraction\StateMachine\StateMachineInterface;
+use Sylius\Component\Channel\Model\ChannelInterface;
 use Sylius\Component\Order\OrderTransitions;
 
 /**
@@ -51,7 +52,7 @@ class AlmaFraudFlagger
         ]);
 
         // 1. Notify Alma server-to-server (best-effort).
-        $this->flagAlma($resolved->almaPayment->getId(), $resolved->almaMode, $reason);
+        $this->flagAlma($resolved->almaPayment->getId(), $resolved->almaMode, $reason, $resolved->order->getChannel());
 
         // 2. Persist the fraud reason on the Sylius Payment details for BO visibility.
         $details = $resolved->syliusPayment->getDetails();
@@ -81,9 +82,9 @@ class AlmaFraudFlagger
         $this->entityManager->flush();
     }
 
-    private function flagAlma(string $pid, string $mode, string $reason): void
+    private function flagAlma(string $pid, string $mode, string $reason, ?ChannelInterface $channel): void
     {
-        $apiKey = $this->configurationResolver->getApiKeyByMode($mode);
+        $apiKey = $this->configurationResolver->getApiKeyByMode($channel, $mode);
         if ($apiKey === null) {
             $this->logger->error('alma.payment.fraud_flag_skipped', [
                 'reason' => 'missing_api_key',

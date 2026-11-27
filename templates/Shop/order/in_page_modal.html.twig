@@ -1,0 +1,46 @@
+{# Opens the Alma In-Page modal over the order page for the Alma payment the
+   order payment route just created (?alma_in_page_payment=<id>), with no click.
+   Closing the modal drops the parameter so a reload does not reopen it; a
+   rejection leaves through the cancel route, a success through the return route. #}
+{% set modal_settings = alma_in_page_modal_settings(hookable_metadata.context.order) %}
+{% if modal_settings is not null %}
+    {% include '@AlmaSyliusPlugin/Shop/in_page/script.html.twig' %}
+
+    {# The library opens the modal through this instance's own frame, kept off-screen. #}
+    <div class="alma-in-page-modal-frame" aria-hidden="true">
+        <div id="alma-in-page-modal-frame" data-alma-in-page-modal="{{ modal_settings|json_encode }}"></div>
+    </div>
+
+    <script>
+        (function () {
+            var modalFrame = document.getElementById('alma-in-page-modal-frame');
+            var modalSettings = JSON.parse(modalFrame.dataset.almaInPageModal);
+
+            function forgetModalPayment() {
+                var orderPageUrl = new URL(window.location.href);
+                orderPageUrl.searchParams.delete({{ constant('Alma\\Sylius\\InPage\\InPageModal::QUERY_PARAMETER')|json_encode|raw }});
+                window.history.replaceState(window.history.state, '', orderPageUrl.toString());
+            }
+
+            window.almaInPageLoaded.then(function (Alma) {
+                var inPage = Alma.InPage.initialize({
+                    merchantId: modalSettings.merchantId,
+                    amountInCents: modalSettings.amountInCents,
+                    installmentsCount: modalSettings.installmentsCount,
+                    deferredDays: modalSettings.deferredDays,
+                    deferredMonths: modalSettings.deferredMonths,
+                    environment: modalSettings.environment,
+                    locale: modalSettings.locale,
+                    selector: '#alma-in-page-modal-frame'
+                });
+                inPage.startPayment({
+                    paymentId: modalSettings.paymentId,
+                    onUserCloseModal: function () {
+                        forgetModalPayment();
+                        inPage.unmount();
+                    }
+                });
+            });
+        })();
+    </script>
+{% endif %}

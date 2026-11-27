@@ -15,6 +15,9 @@ use Twig\TwigFunction;
  * `null` when the widget MUST not be rendered (toggle off, no merchant id, no
  * priced variant…). The Twig template checks for null and emits nothing in
  * that case — cf. spec Requirement « Widget is silent when disabled ».
+ *
+ * `alma_product_exclusion_message(variant)` returns the message rendered in
+ * its place for a product of an excluded category (cf. specs-sylius/category-exclusion).
  */
 final class AlmaProductWidgetExtension extends AbstractExtension
 {
@@ -27,6 +30,7 @@ final class AlmaProductWidgetExtension extends AbstractExtension
     {
         return [
             new TwigFunction('alma_product_widget_config', $this->build(...)),
+            new TwigFunction('alma_product_exclusion_message', $this->exclusionMessage(...)),
         ];
     }
 
@@ -36,5 +40,10 @@ final class AlmaProductWidgetExtension extends AbstractExtension
     public function build(?ProductVariantInterface $variant): ?array
     {
         return $this->provider->build($variant);
+    }
+
+    public function exclusionMessage(?ProductVariantInterface $variant): ?string
+    {
+        return $this->provider->exclusionMessage($variant);
     }
 }

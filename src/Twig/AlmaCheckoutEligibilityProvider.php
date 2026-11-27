@@ -4,12 +4,17 @@ declare(strict_types=1);
 
 namespace Alma\Sylius\Twig;
 
+use Alma\Sylius\BusinessEvents\CheckoutEligibilityRecorder;
 use Alma\Sylius\Cache\SessionEligibilityCache;
 use Alma\Sylius\Eligibility\AlmaEligibility;
 use Alma\Sylius\Eligibility\EligibilityFetcher;
 use Alma\Sylius\Eligibility\EligibilityFetchFailedException;
 use Alma\Sylius\Eligibility\SyliusAddressMapper;
+use Alma\Sylius\Exclusion\ExcludedTaxonMatcher;
 use Alma\Sylius\Resolver\AlmaPaymentMethodResolver;
+use Alma\Sylius\Resolver\AlmaStorefrontVisibility;
+use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
 use Sylius\Component\Core\Model\OrderInterface;
 use Symfony\Contracts\Service\ResetInterface;
 
@@ -20,6 +25,10 @@ use Symfony\Contracts\Service\ResetInterface;
  * cart mutation, mode switch) produces a miss.
  * Fetch failures are swallowed so the checkout still renders; downstream
  * "Alma hidden on eligibility failure" handles the empty result.
+ * An order containing an excluded product short-circuits to an empty result
+ * before the cache and Alma (cf. specs-sylius/category-exclusion), so every
+ * consumer hides Alma without any eligibility call. So does Alma hidden from
+ * the visitor in Test mode (cf. specs-sylius/module-configuration).
  */
 class AlmaCheckoutEligibilityProvider implements ResetInterface
 {
@@ -39,6 +48,10 @@ class AlmaCheckoutEligibilityProvider implements ResetInterface
         private readonly SyliusAddressMapper $addressMapper,
         private readonly EligibilityFetcher $fetcher,
         private readonly SessionEligibilityCache $cache,
+        private readonly ExcludedTaxonMatcher $excludedTaxonMatcher,
+        private readonly AlmaStorefrontVisibility $storefrontVisibility,
+        private readonly LoggerInterface $logger = new NullLogger(),
+        private readonly ?CheckoutEligibilityRecorder $eligibilityRecorder = null,
     ) {
     }
 
@@ -52,7 +65,18 @@ class AlmaCheckoutEligibilityProvider implements ResetInterface
             return $this->memoized[$memoKey];
         }
 
-        $configuration = $this->configurationResolver->getConfiguration();
+        if ($this->storefrontVisibility->isHidden()) {
+            return $this->memoized[$memoKey] = [];
+        }
+
+        $configuration = $this->configurationResolver->getConfiguration($order->getChannel());
+        if ($this->excludedTaxonMatcher->isOrderExcluded($order, $configuration->getExcludedTaxonCodes())) {
+            $this->logger->info('alma.category_exclusion.checkout_hidden', ['order' => $order->getId()]);
+            $this->eligibilityRecorder?->record($order, []);
+
+            return $this->memoized[$memoKey] = [];
+        }
+
         $email = $order->getCustomer()?->getEmail();
         $billing = $this->addressMapper->toAlmaAddress($order->getBillingAddress(), $email);
         $shipping = $this->addressMapper->toAlmaAddress($order->getShippingAddress(), $email);
@@ -60,11 +84,14 @@ class AlmaCheckoutEligibilityProvider implements ResetInterface
         $cacheKey = $this->cache->computeKey($order, $configuration, $billing, $shipping);
         $cached = $this->cache->get($cacheKey);
         if ($cached !== null) {
+            $this->eligibilityRecorder?->record($order, $cached);
+
             return $this->memoized[$memoKey] = $cached;
         }
 
         try {
             $result = $this->fetcher->fetch($configuration, $order->getTotal(), $billing, $shipping);
+            $this->eligibilityRecorder?->record($order, $result);
         } catch (EligibilityFetchFailedException) {
             $result = [];
         }

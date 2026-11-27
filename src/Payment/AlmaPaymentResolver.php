@@ -7,10 +7,12 @@ namespace Alma\Sylius\Payment;
 use Alma\Client\Application\Exception\Endpoint\PaymentEndpointException;
 use Alma\Sylius\Api\PaymentEndpointFactoryInterface;
 use Alma\Sylius\Entity\AlmaConfiguration;
+use Alma\Sylius\Entity\AlmaPaymentReference;
 use Alma\Sylius\Repository\AlmaPaymentReferenceRepository;
 use Alma\Sylius\Resolver\AlmaPaymentMethodResolver;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
+use Sylius\Component\Core\Model\PaymentInterface;
 
 /**
  * Single-pid → (AlmaPayment, Sylius order, Sylius payment) resolver.
@@ -73,7 +75,7 @@ class AlmaPaymentResolver
             return null;
         }
 
-        $apiKey = $this->configurationResolver->getApiKeyByMode($persistedMode);
+        $apiKey = $this->configurationResolver->getApiKeyOfOrder($reference->getSyliusOrder(), $persistedMode);
         if ($apiKey === null) {
             $this->logger->error('alma.payment.resolve_failure', [
                 'reason' => 'missing_api_key_for_persisted_mode',
@@ -110,6 +112,24 @@ class AlmaPaymentResolver
             return null;
         }
 
-        return new ResolvedPayment($almaPayment, $order, $reference->getSyliusPayment(), $persistedMode);
+        return new ResolvedPayment($almaPayment, $order, $this->currentPayment($reference), $persistedMode, $reference);
+    }
+
+    /**
+     * The Sylius Payment the Alma payment now stands for. Once another
+     * gateway's payment it was recorded on has failed or been cancelled,
+     * Sylius gave the order a new Sylius Payment in state `new`: the Alma
+     * payment completes the order through that one (cf. specs-sylius/in-page).
+     */
+    private function currentPayment(AlmaPaymentReference $reference): PaymentInterface
+    {
+        $payment = $reference->getSyliusPayment();
+        $method = $payment->getMethod();
+        $ended = \in_array($payment->getState(), [PaymentInterface::STATE_FAILED, PaymentInterface::STATE_CANCELLED], true);
+        if (!$ended || $method === null || $this->configurationResolver->isAlma($method)) {
+            return $payment;
+        }
+
+        return $reference->getSyliusOrder()->getLastPayment(PaymentInterface::STATE_NEW) ?? $payment;
     }
 }

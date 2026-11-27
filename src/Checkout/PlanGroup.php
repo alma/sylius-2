@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Alma\Sylius\Checkout;
 
 use Alma\Sylius\Eligibility\AlmaEligibility;
+use Alma\Sylius\Payment\FeePlanKey;
 
 // PHPCompatibility 9.3.5 predates PHP 8.1 enums and false-positives on $this
 // inside enum methods.
@@ -18,8 +19,22 @@ enum PlanGroup: string
 
     public static function classify(AlmaEligibility $eligibility): self
     {
-        $installments = $eligibility->getInstallmentsCount();
+        return self::fromPlanParameters(
+            $eligibility->getInstallmentsCount(),
+            $eligibility->getDeferredDays(),
+            $eligibility->getDeferredMonths(),
+        );
+    }
 
+    public static function fromPlanKey(string $planKey): self
+    {
+        $plan = FeePlanKey::parse($planKey);
+
+        return self::fromPlanParameters($plan->installmentsCount, $plan->deferredDays, $plan->deferredMonths);
+    }
+
+    private static function fromPlanParameters(int $installments, int $deferredDays, int $deferredMonths): self
+    {
         if ($installments > 4) {
             return self::Credit;
         }
@@ -28,7 +43,7 @@ enum PlanGroup: string
             return self::Installments;
         }
 
-        if ($eligibility->getDeferredDays() > 0 || $eligibility->getDeferredMonths() > 0) {
+        if ($deferredDays > 0 || $deferredMonths > 0) {
             return self::Deferred;
         }
 
@@ -56,6 +71,14 @@ enum PlanGroup: string
     }
 
     public function showsFeeLine(): bool
+    {
+        return self::PayNow !== $this;
+    }
+
+    /**
+     * In the In-Page flow the Alma frame replaces the schedule and fee line.
+     */
+    public function showsInPageFrame(): bool
     {
         return self::PayNow !== $this;
     }

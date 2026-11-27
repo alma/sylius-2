@@ -3,3 +3,9 @@ alma_sylius_payment:
         path: ../../src/Controller/Payment/
         namespace: Alma\Sylius\Controller\Payment
     type: attribute
+
+alma_sylius_cms_data_export:
+    resource:
+        path: ../../src/Controller/CmsDataExport/
+        namespace: Alma\Sylius\Controller\CmsDataExport
+    type: attribute

@@ -7,17 +7,12 @@ namespace Alma\Sylius\Validator\Constraint;
 use Symfony\Component\Validator\Constraint;
 
 /**
- * Enforces the "only one Alma PaymentMethod per shop" invariant.
- *
- * Applied at PaymentMethod level by the Sylius admin validation groups
- * (registered via prepend in {@see \Alma\Sylius\DependencyInjection\AlmaSyliusExtension}).
- * See specs-sylius/module-configuration, Requirement "Only one Alma
- * PaymentMethod per shop".
+ * A channel has at most one Alma PaymentMethod (cf. specs-sylius/module-configuration).
  */
 #[\Attribute(\Attribute::TARGET_CLASS)]
 final class UniqueAlmaPaymentMethod extends Constraint
 {
-    public string $message = 'alma_sylius.form.error.payment_method_already_exists';
+    public string $message = 'alma_sylius.form.error.channel_already_has_alma_payment_method';
 
     public function getTargets(): string|array
     {

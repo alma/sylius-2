@@ -5,5 +5,6 @@ alma_sylius:
         payment_fraud_detected: Le paiement n'a pas pu être validé. Si le montant a été débité, contactez le support.
         payment_paid: Votre paiement a été validé.
         payment_cancelled: Paiement annulé. Vous pouvez réessayer depuis le récapitulatif de commande.
+        payment_not_accepted: Votre paiement n'a pas été accepté. Vous pouvez payer à nouveau avec Alma ou choisir un autre moyen de paiement.
         payment_cancel_failed: Une erreur est survenue lors de l'annulation du paiement. Veuillez réessayer ou contacter le support.
         refund_failed: Le remboursement n'a pas pu être traité par Alma. Veuillez réessayer ou contacter le support.

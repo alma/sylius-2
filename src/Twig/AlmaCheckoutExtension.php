@@ -9,6 +9,7 @@ use Alma\Sylius\Checkout\GroupDisplayTextsResolver;
 use Alma\Sylius\Checkout\PlanGroup;
 use Alma\Sylius\Checkout\View\GroupDisplayText;
 use Alma\Sylius\Resolver\AlmaPaymentMethodResolver;
+use Sylius\Component\Channel\Context\ChannelContextInterface;
 use Sylius\Component\Core\Model\OrderInterface;
 use Sylius\Component\Locale\Context\LocaleContextInterface;
 use Twig\Extension\AbstractExtension;
@@ -22,6 +23,7 @@ final class AlmaCheckoutExtension extends AbstractExtension
         private readonly GroupDisplayTextsResolver $displayTextsResolver,
         private readonly AlmaPaymentMethodResolver $paymentMethodResolver,
         private readonly LocaleContextInterface $localeContext,
+        private readonly ChannelContextInterface $channelContext,
     ) {
     }
 
@@ -30,6 +32,7 @@ final class AlmaCheckoutExtension extends AbstractExtension
         return [
             new TwigFunction('alma_eligibility_groups', $this->almaEligibilityGroups(...)),
             new TwigFunction('alma_group_display', $this->almaGroupDisplay(...)),
+            new TwigFunction('alma_unified_payment_button', $this->almaUnifiedPaymentButton(...)),
         ];
     }
 
@@ -44,8 +47,21 @@ final class AlmaCheckoutExtension extends AbstractExtension
     public function almaGroupDisplay(PlanGroup $group): GroupDisplayText
     {
         return $this->displayTextsResolver->resolve(
-            $this->paymentMethodResolver->getConfiguration()->getDisplayTexts() ?? [],
+            $this->paymentMethodResolver->getConfiguration($this->channelContext->getChannel())->getDisplayTexts() ?? [],
             $group,
+            $this->localeContext->getLocaleCode(),
+        );
+    }
+
+    public function almaUnifiedPaymentButton(OrderInterface $order): ?GroupDisplayText
+    {
+        $configuration = $this->paymentMethodResolver->getConfiguration($order->getChannel());
+        if (!$configuration->isUnifiedPaymentButtonEnabled()) {
+            return null;
+        }
+
+        return $this->displayTextsResolver->resolveUnifiedPaymentButton(
+            $configuration->getDisplayTexts() ?? [],
             $this->localeContext->getLocaleCode(),
         );
     }
