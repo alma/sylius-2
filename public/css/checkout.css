@@ -7,5 +7,8 @@
 .alma-group__title { font-weight: 600; }
 .alma-group__logo { margin-left: auto; }
 .alma-group__buttons { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: .75rem; }
-.alma-plan-btn { border: 1px solid #dee2e6; border-radius: .5rem; background: #fff; padding: .375rem .75rem; font-weight: 600; cursor: pointer; }
-.alma-plan-btn[aria-pressed="true"] { background: #fa5022; border-color: #fa5022; color: #fff; }
+.alma-plan-btn { display: inline-flex; align-items: center; gap: 8px; height: 26px; padding: 3px 9px 3px 3px; border: 0; border-radius: 13px; background: #fa5022; opacity: .5; cursor: pointer; }
+.alma-plan-btn[aria-pressed="true"] { opacity: 1; }
+.alma-plan-btn__label { display: inline-flex; align-items: center; justify-content: center; min-width: 30px; height: 20px; padding: 0 6px; border-radius: 10px; background: #fff; color: #1e1e1e; font-size: 11px; font-weight: 700; line-height: 1; white-space: nowrap; }
+.alma-plan-btn__logo { height: 9px; width: auto; }
+.alma-in-page-modal-frame { position: absolute; left: -10000px; top: 0; width: 1px; height: 1px; overflow: hidden; }

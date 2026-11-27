@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Alma\Sylius\Form\Type;
 
 use Alma\Sylius\Payment\AlmaPaymentDetailsKeys;
+use Alma\Sylius\Resolver\AlmaPaymentMethodResolver;
 use Alma\Sylius\Twig\AlmaCheckoutEligibilityProvider;
 use Sylius\Component\Core\Model\PaymentInterface;
+use Sylius\Component\Core\OrderCheckoutStates;
 use Symfony\Component\Form\AbstractType;
 use Symfony\Component\Form\Extension\Core\Type\ChoiceType;
 use Symfony\Component\Form\FormBuilderInterface;
@@ -22,6 +24,7 @@ final class AlmaPaymentDetailsType extends AbstractType
 {
     public function __construct(
         private readonly AlmaCheckoutEligibilityProvider $eligibilityProvider,
+        private readonly AlmaPaymentMethodResolver $paymentMethodResolver,
     ) {
     }
 
@@ -40,11 +43,8 @@ final class AlmaPaymentDetailsType extends AbstractType
                 return;
             }
 
-            // Spec "No default plan": strip any persisted value so no radio is pre-checked.
-            $data = $event->getData();
-            if (is_array($data) && array_key_exists(AlmaPaymentDetailsKeys::FEE_PLAN_KEY, $data)) {
-                unset($data[AlmaPaymentDetailsKeys::FEE_PLAN_KEY]);
-                $event->setData($data);
+            if ($this->paymentMethodResolver->getConfiguration($order->getChannel())->isUnifiedPaymentButtonEnabled()) {
+                return;
             }
 
             // Spec "Radio input label is the human-readable plan label": the visible label
@@ -59,6 +59,18 @@ final class AlmaPaymentDetailsType extends AbstractType
                 }
                 $choices[] = $planKey;
                 $labels[$planKey] = $eligibility->getLabel();
+            }
+
+            // Spec "No forced default": no radio is pre-checked, except when paying
+            // again a placed order, which keeps the plan of its last attempt if
+            // still eligible.
+            $data = $event->getData();
+            if (is_array($data) && array_key_exists(AlmaPaymentDetailsKeys::FEE_PLAN_KEY, $data)) {
+                $payingAgain = $order->getCheckoutState() === OrderCheckoutStates::STATE_COMPLETED;
+                if (!$payingAgain || !\in_array($data[AlmaPaymentDetailsKeys::FEE_PLAN_KEY], $choices, true)) {
+                    unset($data[AlmaPaymentDetailsKeys::FEE_PLAN_KEY]);
+                    $event->setData($data);
+                }
             }
 
             $form->add(AlmaPaymentDetailsKeys::FEE_PLAN_KEY, ChoiceType::class, [

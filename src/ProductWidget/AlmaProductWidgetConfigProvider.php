@@ -4,9 +4,14 @@ declare(strict_types=1);
 
 namespace Alma\Sylius\ProductWidget;
 
-use Alma\Sylius\Api\FeePlanAdapterCollectionBuilder;
+use Alma\Sylius\Entity\AlmaConfiguration;
+use Alma\Sylius\Exclusion\ExcludedTaxonMatcher;
+use Alma\Sylius\Exclusion\ExclusionMessageResolver;
 use Alma\Sylius\Resolver\AlmaPaymentMethodResolver;
+use Alma\Sylius\Resolver\AlmaStorefrontVisibility;
+use Alma\Sylius\Widget\WidgetPayloadBuilder;
 use Sylius\Component\Channel\Context\ChannelContextInterface;
+use Sylius\Component\Core\Model\ProductInterface;
 use Sylius\Component\Core\Model\ProductVariantInterface;
 use Sylius\Component\Locale\Context\LocaleContextInterface;
 
@@ -26,10 +31,13 @@ use Sylius\Component\Locale\Context\LocaleContextInterface;
  * Returns `null` whenever the widget MUST NOT be rendered:
  *  - the merchant has not enabled the toggle (cf. spec Requirement « Widget is
  *    enabled or disabled via a single back-office toggle »),
+ *  - Alma is hidden from this visitor in Test mode,
  *  - the plugin has no persisted `merchant_id` (the configuration was never
  *    saved with a valid API key),
  *  - no variant is selected, or the selected variant has no price in the
- *    active channel.
+ *    active channel,
+ *  - the product belongs to an excluded category: {@see exclusionMessage()}
+ *    then provides the message rendered in place of the widget.
  *
  * When returning `null` the Twig hook MUST emit nothing — no `<script>` tag,
  * no placeholder DOM (cf. Requirement « Widget is silent when disabled »).
@@ -38,10 +46,30 @@ final class AlmaProductWidgetConfigProvider
 {
     public function __construct(
         private readonly AlmaPaymentMethodResolver $configurationResolver,
-        private readonly FeePlanAdapterCollectionBuilder $feePlanCollectionBuilder,
+        private readonly WidgetPayloadBuilder $payloadBuilder,
         private readonly ChannelContextInterface $channelContext,
         private readonly LocaleContextInterface $localeContext,
+        private readonly ExcludedTaxonMatcher $excludedTaxonMatcher,
+        private readonly ExclusionMessageResolver $exclusionMessageResolver,
+        private readonly AlmaStorefrontVisibility $storefrontVisibility,
     ) {
+    }
+
+    /**
+     * The message shown in place of the widget for a product of an excluded
+     * category, or `null` when the widget itself would not be rendered.
+     */
+    public function exclusionMessage(?ProductVariantInterface $variant): ?string
+    {
+        $configuration = $this->configurationResolver->getConfiguration($this->channelContext->getChannel());
+        if ($variant === null || !$this->isWidgetActive($configuration) || !$this->isExcluded($variant, $configuration)) {
+            return null;
+        }
+
+        return $this->exclusionMessageResolver->resolve(
+            $configuration->getExclusionMessages() ?? [],
+            $this->localeContext->getLocaleCode(),
+        );
     }
 
     /**
@@ -49,45 +77,21 @@ final class AlmaProductWidgetConfigProvider
      */
     public function build(?ProductVariantInterface $variant): ?array
     {
-        $configuration = $this->configurationResolver->getConfiguration();
-        if (!$configuration->isProductWidgetEnabled()) {
-            return null;
-        }
-
-        $merchantId = $configuration->getMerchantId();
-        if ($merchantId === null || $merchantId === '') {
-            return null;
-        }
-
-        if ($variant === null) {
-            return null;
-        }
-
         $channel = $this->channelContext->getChannel();
+        $configuration = $this->configurationResolver->getConfiguration($channel);
+        if (!$this->isWidgetActive($configuration)) {
+            return null;
+        }
+
+        if ($variant === null || $this->isExcluded($variant, $configuration)) {
+            return null;
+        }
+
+        $merchantId = (string) $configuration->getMerchantId();
+
         $unitPrice = $this->resolveVariantPrice($variant, $channel);
         if ($unitPrice === null) {
             return null;
-        }
-
-        $plans = [];
-        foreach ($this->feePlanCollectionBuilder->build($configuration) as $adapter) {
-            if (!$adapter->isAvailable()) {
-                continue;
-            }
-            $plan = [
-                'installmentsCount' => $adapter->getInstallmentsCount(),
-                'minAmount' => $adapter->getMinPurchaseAmount(),
-                'maxAmount' => $adapter->getMaxPurchaseAmount(),
-            ];
-            $deferredDays = $adapter->getDeferredDays();
-            if ($deferredDays > 0) {
-                $plan['deferredDays'] = $deferredDays;
-            }
-            $deferredMonths = $adapter->getDeferredMonths();
-            if ($deferredMonths > 0) {
-                $plan['deferredMonths'] = $deferredMonths;
-            }
-            $plans[] = $plan;
         }
 
         return [
@@ -95,9 +99,27 @@ final class AlmaProductWidgetConfigProvider
             'mode' => strtoupper($configuration->getApiMode()),
             'unitPrice' => $unitPrice,
             'currency' => method_exists($channel, 'getBaseCurrency') ? ($channel->getBaseCurrency()?->getCode() ?? 'EUR') : 'EUR',
-            'locale' => $this->resolveLocale(),
-            'plans' => $plans,
+            'locale' => $this->payloadBuilder->locale(),
+            'plans' => $this->payloadBuilder->plans($configuration),
         ];
+    }
+
+    private function isWidgetActive(AlmaConfiguration $configuration): bool
+    {
+        $merchantId = $configuration->getMerchantId();
+
+        return $configuration->isProductWidgetEnabled()
+            && $merchantId !== null
+            && $merchantId !== ''
+            && !$this->storefrontVisibility->isHidden();
+    }
+
+    private function isExcluded(ProductVariantInterface $variant, AlmaConfiguration $configuration): bool
+    {
+        $product = $variant->getProduct();
+
+        return $product instanceof ProductInterface
+            && $this->excludedTaxonMatcher->isProductExcluded($product, $configuration->getExcludedTaxonCodes());
     }
 
     private function resolveVariantPrice(ProductVariantInterface $variant, object $channel): ?int
@@ -113,26 +135,5 @@ final class AlmaProductWidgetConfigProvider
         $price = $pricing->getPrice();
 
         return is_int($price) ? $price : null;
-    }
-
-    /**
-     * Sylius exposes locales as `xx_XX` (e.g. `fr_FR`). The Alma widget
-     * accepts `xx` or `xx-XX` (hyphen). Convert when the shape matches,
-     * otherwise omit and let the widget fall back to its default.
-     */
-    private function resolveLocale(): ?string
-    {
-        $locale = $this->localeContext->getLocaleCode();
-        if (!is_string($locale) || $locale === '') {
-            return null;
-        }
-        if (preg_match('/^([a-z]{2})_([A-Z]{2})$/', $locale, $m) === 1) {
-            return $m[1] . '-' . $m[2];
-        }
-        if (preg_match('/^[a-z]{2}$/', $locale) === 1) {
-            return $locale;
-        }
-
-        return null;
     }
 }

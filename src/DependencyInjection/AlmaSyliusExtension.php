@@ -19,8 +19,17 @@ final class AlmaSyliusExtension extends AbstractResourceExtension implements Pre
 
     public function load(array $configs, ContainerBuilder $container): void
     {
+        $config = $this->processConfiguration(new Configuration(), $configs);
+        $container->setParameter('alma_sylius.admin_firewall_context', $config['admin_firewall_context']);
+
         $loader = new YamlFileLoader($container, new FileLocator(__DIR__ . '/../../config'));
         $loader->load('services.yaml');
+
+        /** @var array<string, class-string> $bundles */
+        $bundles = $container->getParameter('kernel.bundles');
+        if (isset($bundles['SyliusRefundPlugin'])) {
+            $loader->load('services/refund_plugin.yaml');
+        }
     }
 
     public function prepend(ContainerBuilder $container): void

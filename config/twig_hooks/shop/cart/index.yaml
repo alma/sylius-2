@@ -1,0 +1,28 @@
+# One hookable per cart widget position (cf. CartWidgetPosition); only the
+# one the merchant picked renders. All sit inside the `sylius_shop:cart:form`
+# Live Component, so they re-render on every cart change.
+sylius_twig_hooks:
+    hooks:
+        'sylius_shop.cart.index.content.form.sections.general#right':
+            alma_cart_widget_before_summary:
+                template: '@AlmaSyliusPlugin/Shop/cart/widget.html.twig'
+                configuration:
+                    position: before_summary
+                priority: 150
+            alma_cart_widget_after_summary:
+                template: '@AlmaSyliusPlugin/Shop/cart/widget.html.twig'
+                configuration:
+                    position: after_summary
+                priority: 50
+            alma_cart_widget_after_checkout_button:
+                template: '@AlmaSyliusPlugin/Shop/cart/widget.html.twig'
+                configuration:
+                    position: after_checkout_button
+                priority: -100
+
+        'sylius_shop.cart.index.content.form.sections.general#left':
+            alma_cart_widget_after_items:
+                template: '@AlmaSyliusPlugin/Shop/cart/widget.html.twig'
+                configuration:
+                    position: after_items
+                priority: 150

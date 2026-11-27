@@ -9,6 +9,7 @@ use Alma\Client\Application\DTO\CartItemDto;
 use Alma\Client\Application\DTO\CustomerDto;
 use Alma\Client\Application\DTO\OrderDto;
 use Alma\Client\Application\DTO\PaymentDto;
+use Alma\Client\Application\DTO\RequestedProductDto;
 use Alma\Sylius\Eligibility\SyliusAddressMapper;
 use Sylius\Component\Core\Model\AddressInterface;
 use Sylius\Component\Core\Model\OrderInterface;
@@ -34,14 +35,45 @@ class AlmaPaymentRequestBuilder
     ) {
     }
 
-    public function build(PaymentInterface $payment, string $planKey): AlmaPaymentRequest
+    public function build(PaymentInterface $payment, string $planKey, bool $inPage = false): AlmaPaymentRequest
+    {
+        $feePlan = FeePlanKey::parse($planKey);
+
+        return $this->assemble($payment, $inPage, static function (PaymentDto $paymentDto) use ($feePlan): void {
+            $paymentDto
+                ->setInstallmentsCount($feePlan->installmentsCount)
+                ->setDeferredDays($feePlan->deferredDays)
+                ->setDeferredMonths($feePlan->deferredMonths)
+            ;
+        });
+    }
+
+    /**
+     * @param list<string> $planKeys
+     */
+    public function buildUnified(PaymentInterface $payment, array $planKeys): AlmaPaymentRequest
+    {
+        return $this->assemble($payment, false, static function (PaymentDto $paymentDto) use ($planKeys): void {
+            foreach ($planKeys as $planKey) {
+                $feePlan = FeePlanKey::parse($planKey);
+                $product = new RequestedProductDto($feePlan->installmentsCount);
+                if ($feePlan->deferredDays > 0) {
+                    $product->setDeferredDays($feePlan->deferredDays);
+                }
+                $paymentDto->addRequestedProduct($product);
+            }
+        });
+    }
+
+    /**
+     * @param \Closure(PaymentDto): void $applyPlans
+     */
+    private function assemble(PaymentInterface $payment, bool $inPage, \Closure $applyPlans): AlmaPaymentRequest
     {
         $order = $payment->getOrder();
         if ($order === null) {
             throw new \LogicException('Cannot build Alma payment request: payment has no order.');
         }
-
-        [$installments, $deferredDays, $deferredMonths] = $this->parsePlanKey($planKey);
 
         $billingAddress = $order->getBillingAddress();
         $shippingAddress = $order->getShippingAddress();
@@ -49,19 +81,26 @@ class AlmaPaymentRequestBuilder
         $email = $order->getCustomer()?->getEmail();
 
         $paymentDto = new PaymentDto($order->getTotal());
+        $applyPlans($paymentDto);
         $paymentDto
-            ->setInstallmentsCount($installments)
-            ->setDeferredDays($deferredDays)
-            ->setDeferredMonths($deferredMonths)
-            ->setOrigin(PaymentDto::ORIGIN_ONLINE)
+            ->setOrigin($inPage ? PaymentDto::ORIGIN_ONLINE_IN_PAGE : PaymentDto::ORIGIN_ONLINE)
             ->setReturnUrl($this->absoluteUrl('alma_sylius_payment_return'))
-            ->setCustomerCancelUrl($this->absoluteUrl('alma_sylius_payment_cancel'))
             ->setIpnCallbackUrl($this->absoluteUrl('alma_sylius_payment_ipn'))
             ->setCustomData([
                 'order_id' => $order->getNumber(),
                 'order_internal_id' => $order->getId(),
             ])
         ;
+
+        if ($inPage) {
+            // The In-Page modal sends a rejected payment to its failure return URL.
+            // No customer cancel URL: Alma's checkout opens it inside the modal
+            // (« back to the shop » on a rejection offering to pay at once),
+            // which leaves the modal open over the order page.
+            $paymentDto->setFailureReturnUrl($this->absoluteUrl('alma_sylius_payment_cancel'));
+        } else {
+            $paymentDto->setCustomerCancelUrl($this->absoluteUrl('alma_sylius_payment_cancel'));
+        }
 
         $locale = $this->resolveLocale($order);
         if ($locale !== null) {
@@ -136,25 +175,6 @@ class AlmaPaymentRequestBuilder
         }
 
         return $dto;
-    }
-
-    /**
-     * @return array{int, int, int} [installmentsCount, deferredDays, deferredMonths]
-     */
-    private function parsePlanKey(string $planKey): array
-    {
-        // <kind>_<installments>_<deferred_days>_<deferred_months>
-        $parts = explode('_', $planKey);
-        $count = count($parts);
-        if ($count < 4) {
-            throw new \InvalidArgumentException(sprintf('Invalid fee plan key "%s".', $planKey));
-        }
-
-        $installments = (int) $parts[$count - 3];
-        $deferredDays = (int) $parts[$count - 2];
-        $deferredMonths = (int) $parts[$count - 1];
-
-        return [$installments, $deferredDays, $deferredMonths];
     }
 
     private function resolveLocale(OrderInterface $order): ?string

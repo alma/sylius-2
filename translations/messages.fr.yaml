@@ -7,14 +7,37 @@ alma_sylius:
             api_mode: Mode API
             merchant_id: Identifiant marchand
             product_widget_enabled: Afficher le widget Alma sur la page produit
+            in_page_enabled: Paiement In-Page
+            in_page_enabled_help: Le client paie dans une fenêtre Alma ouverte sur votre boutique, sans être redirigé vers la page de paiement Alma.
+            unified_payment_button_enabled: Bouton de paiement unifié
+            unified_payment_button_enabled_help: Le checkout affiche une seule entrée Alma, et le client choisit son plan sur la page de paiement Alma.
+            payment_flow:
+                title: Parcours de paiement
+                description: Ces réglages décident de la façon dont le client paie avec Alma.
             mode:
                 live: Live
                 test: Test
+            cart_widget:
+                enabled: Afficher le widget Alma sur la page panier
+                position:
+                    label: Position sur la page panier
+                    after_summary: Sous le récapitulatif, avant le bouton de commande
+                    before_summary: Au-dessus du récapitulatif
+                    after_checkout_button: Sous le bouton de commande
+                    after_items: Sous la liste des articles
+                show_if_not_eligible: Afficher le widget même si le panier n'est pas éligible
+                monochrome: Monochrome
+                hide_border: Masquer la bordure
+                transition_delay: Délai entre deux plans (ms)
+                transition_delay_help: Durée pendant laquelle chaque plan reste mis en avant dans l'animation ; -1 arrête l'animation.
             display:
                 section_title: Affichage
                 widget:
                     title: Widget produit
                     description: Affiche l'aperçu des paiements Alma sur la page produit.
+                cart_widget:
+                    title: Widget panier
+                    description: Affiche l'aperçu des paiements Alma sur la page panier, à la position choisie.
                 checkout:
                     title: Personnalisation du checkout
                     description: Personnalisez le titre et la description affichés pour chaque groupe de paiement Alma au checkout, pour chaque langue de la boutique.
@@ -36,10 +59,24 @@ alma_sylius:
                     credit:
                         name: Crédit
                         definition: Plus de 4 échéances
+                    unified_payment_button:
+                        name: Bouton de paiement unifié
+                        definition: Une seule entrée Alma, le plan est choisi chez Alma
+            exclusion:
+                section_title: Catégories exclues
+                terms: Certains produits (cartes cadeaux, clés de licence, logiciels, armes, etc.) ne peuvent pas être vendus avec Alma, comme l'indiquent ses conditions.
+                taxons: Catégories exclues d'Alma
+                message:
+                    title: Message d'exclusion
+                    description: Affiché à la place du widget Alma sur la page d'un produit d'une catégorie exclue, pour chaque langue de la boutique.
+                column:
+                    locale: Langue
+                    message: Message
         error:
             api_key_invalid: Cette clé API est invalide ou injoignable.
             merchant_cannot_create_payments: Ce compte ne peut pas créer de paiements.
             cross_keys_merchant_mismatch: Les clés Test et Live doivent appartenir au même compte Alma.
+            unified_payment_button_requires_off_site: Le bouton de paiement unifié exige que le paiement In-Page soit désactivé.
     fee_plan:
         section_title: Plans de paiement
         empty_state: Configurez une clé pour afficher les plans.
@@ -58,6 +95,17 @@ alma_sylius:
             range_clamped: "Override pour le plan %plan% hors plage API, valeur ajustée à %value%."
     gateway:
         label: Alma
+    admin_order:
+        title: Paiements Alma
+        payment_id: Paiement Alma
+        plan: Plan
+        mode: Mode
+        paid: Payé
+        paid_yes: Payé
+        paid_no: Non payé
+        paid_the_order: A payé la commande
+    exclusion:
+        default_message: "Le paiement avec Alma n'est pas disponible pour cet achat."
     checkout:
         customer_fee: Frais client
         no_customer_fee: Sans frais
@@ -72,6 +120,8 @@ alma_sylius:
                 title: Payer plus tard
             credit:
                 title: Étaler votre paiement
+        unified_payment_button:
+            title: Payer avec Alma
         button:
             installments: "%count%x"
             deferred_days: "+%count%j"

@@ -1,0 +1,48 @@
+# Loaded only when the shop has sylius/refund-plugin (see AlmaSyliusExtension).
+services:
+    _defaults:
+        autowire: true
+        autoconfigure: true
+        public: false
+
+    Alma\Sylius\Refund\AlmaRefundPaymentMethodsProvider:
+        decorates: sylius_refund.provider.refund_payment_methods
+        arguments:
+            $inner: '@.inner'
+
+    # Below the Refund Plugin's steps (credit memo 100, refund payment 50): Alma refunds
+    # only once every Sylius write of the refund has succeeded, still uncommitted.
+    # Not autoconfigured: the Refund Plugin would tag it a second time, at priority 0.
+    Alma\Sylius\Refund\AlmaRefundStep:
+        autoconfigure: false
+        arguments:
+            $paymentMethodRepository: '@sylius.repository.payment_method'
+            $orderRepository: '@sylius.repository.order'
+        tags:
+            - { name: sylius_refund.units_refunded.process_step, priority: 10 }
+
+    Alma\Sylius\Refund\AlmaRefundCommitWatcher:
+        arguments:
+            $commandBus: '@sylius.command_bus'
+        tags:
+            - { name: messenger.message_handler, bus: sylius.command_bus }
+            - { name: kernel.event_listener, event: kernel.terminate, method: reportUnrecorded }
+            - { name: kernel.event_listener, event: console.terminate, method: reportUnrecorded }
+
+    Alma\Sylius\Refund\SendCreditMemoAfterCommitListener:
+        decorates: sylius_refund.listener.credit_memo_generated
+        arguments:
+            $commandBus: '@sylius.command_bus'
+
+    Alma\Sylius\Refund\SendCreditMemoAfterRefundHandler:
+        arguments:
+            $commandBus: '@sylius.command_bus'
+        tags:
+            - { name: messenger.message_handler, bus: sylius.command_bus }
+
+    Alma\Sylius\Refund\AlmaRefundPaymentGeneratedHandler:
+        arguments:
+            $refundPaymentRepository: '@sylius_refund.repository.refund_payment'
+            $completedStateApplier: '@sylius_refund.state_resolver.refund_payment_completed_applier'
+        tags:
+            - { name: messenger.message_handler, bus: sylius.event_bus }

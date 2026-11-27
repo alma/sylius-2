@@ -1,0 +1,6 @@
+sylius_twig_hooks:
+    hooks:
+        'sylius_admin.order.show.content.sections#left':
+            alma_payments:
+                template: '@AlmaSyliusPlugin/Admin/order/alma_payments.html.twig'
+                priority: 50

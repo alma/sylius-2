@@ -1,0 +1,15 @@
+{# Loads Alma's In-Page library from its CDN once per page, whichever Alma
+   template (payment form, order-page modal) asks for it first. #}
+<script>
+    window.almaInPageLoaded = window.almaInPageLoaded || new Promise(function (resolve, reject) {
+        if (window.Alma && window.Alma.InPage) {
+            resolve(window.Alma);
+            return;
+        }
+        var libraryScript = document.createElement('script');
+        libraryScript.src = {{ alma_in_page_script_url()|json_encode|raw }};
+        libraryScript.onload = function () { resolve(window.Alma); };
+        libraryScript.onerror = reject;
+        document.head.appendChild(libraryScript);
+    });
+</script>

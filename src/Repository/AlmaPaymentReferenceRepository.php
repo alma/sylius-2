@@ -7,6 +7,7 @@ namespace Alma\Sylius\Repository;
 use Alma\Sylius\Entity\AlmaPaymentReference;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
+use Sylius\Component\Core\Model\OrderInterface;
 
 /**
  * @extends ServiceEntityRepository<AlmaPaymentReference>
@@ -25,5 +26,15 @@ class AlmaPaymentReferenceRepository extends ServiceEntityRepository
         }
 
         return $this->findOneBy(['almaPaymentId' => $almaPaymentId]);
+    }
+
+    /**
+     * Every Alma payment created for the order, oldest first.
+     *
+     * @return list<AlmaPaymentReference>
+     */
+    public function findByOrder(OrderInterface $order): array
+    {
+        return array_values($this->findBy(['syliusOrder' => $order], ['id' => 'ASC']));
     }
 }

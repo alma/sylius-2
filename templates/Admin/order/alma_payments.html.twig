@@ -1,0 +1,41 @@
+{# Every Alma payment created for the order (one per In-Page attempt). An extra
+   paid payment simply shows as paid: the merchant decides from the payment history. #}
+{% set alma_payments = alma_order_payments(hookable_metadata.context.resource) %}
+{% if alma_payments is not empty %}
+    <div class="card mb-3" data-test-alma-payments>
+        <div class="card-header">
+            <div class="card-title">{{ 'alma_sylius.admin_order.title'|trans }}</div>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-vcenter table-sm card-table">
+                <thead>
+                    <tr>
+                        <th>{{ 'alma_sylius.admin_order.payment_id'|trans }}</th>
+                        <th>{{ 'alma_sylius.admin_order.plan'|trans }}</th>
+                        <th>{{ 'alma_sylius.admin_order.mode'|trans }}</th>
+                        <th>{{ 'alma_sylius.admin_order.paid'|trans }}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for alma_payment in alma_payments %}
+                        <tr data-test-alma-payment="{{ alma_payment.almaPaymentId }}">
+                            <td><code>{{ alma_payment.almaPaymentId }}</code></td>
+                            <td>{{ alma_payment.planKey ?? '-' }}</td>
+                            <td>{{ ('alma_sylius.form.configuration.mode.' ~ alma_payment.mode)|trans }}</td>
+                            <td>
+                                {% if alma_payment.paid %}
+                                    <span class="badge bg-success-lt" data-test-alma-payment-paid>{{ 'alma_sylius.admin_order.paid_yes'|trans }}</span>
+                                {% else %}
+                                    <span class="badge bg-secondary-lt" data-test-alma-payment-unpaid>{{ 'alma_sylius.admin_order.paid_no'|trans }}</span>
+                                {% endif %}
+                                {% if alma_payment.paidTheOrder %}
+                                    <span class="badge bg-primary-lt" data-test-alma-payment-paid-the-order>{{ 'alma_sylius.admin_order.paid_the_order'|trans }}</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+{% endif %}

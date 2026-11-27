@@ -28,9 +28,9 @@ use Sylius\Component\Payment\PaymentTransitions;
 abstract class AbstractPaymentTransitionHelper
 {
     public function __construct(
-        private readonly StateMachineInterface $stateMachine,
-        private readonly EntityManagerInterface $entityManager,
-        private readonly LoggerInterface $logger = new NullLogger(),
+        protected readonly StateMachineInterface $stateMachine,
+        protected readonly EntityManagerInterface $entityManager,
+        protected readonly LoggerInterface $logger = new NullLogger(),
     ) {
     }
 
@@ -39,6 +39,13 @@ abstract class AbstractPaymentTransitionHelper
     abstract protected function getSkippedLogKey(): string;
 
     abstract protected function getAppliedLogKey(): string;
+
+    /**
+     * Runs only when the transition is about to be applied.
+     */
+    protected function beforeTransition(ResolvedPayment $resolved): void
+    {
+    }
 
     /**
      * @return bool true if the transition was applied on this call,
@@ -58,6 +65,7 @@ abstract class AbstractPaymentTransitionHelper
             return false;
         }
 
+        $this->beforeTransition($resolved);
         $this->stateMachine->apply($payment, PaymentTransitions::GRAPH, $this->getTransition());
         $this->entityManager->flush();
 

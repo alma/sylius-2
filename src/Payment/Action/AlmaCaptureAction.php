@@ -7,9 +7,12 @@ namespace Alma\Sylius\Payment\Action;
 use Alma\Client\Application\Exception\Endpoint\PaymentEndpointException;
 use Alma\Sylius\Api\PaymentEndpointFactoryInterface;
 use Alma\Sylius\Entity\AlmaPaymentReference;
+use Alma\Sylius\InPage\InPageModal;
 use Alma\Sylius\Payment\AlmaPaymentDetailsKeys;
 use Alma\Sylius\Payment\AlmaPaymentRequestBuilder;
+use Alma\Sylius\Payment\AlreadyPaidOrder;
 use Alma\Sylius\Resolver\AlmaPaymentMethodResolver;
+use Alma\Sylius\Twig\AlmaCheckoutEligibilityProvider;
 use Doctrine\ORM\EntityManagerInterface;
 use Payum\Core\Action\ActionInterface;
 use Payum\Core\Exception\RequestNotSupportedException;
@@ -25,17 +28,22 @@ use Symfony\Component\HttpFoundation\Session\Session;
 use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 
 /**
- * Calls Alma's PaymentEndpoint::create() at place-order time, persists the
- * 4 references (alma_payment_id, alma_payment_url, alma_fee_plan_key, alma_mode)
- * on the Sylius Payment's details JSON column, then throws a Payum HttpRedirect
- * reply pointing to the Alma hosted payment page (302 Location). The Payum
- * gateway catches the reply and Sylius converts it to a Symfony RedirectResponse.
+ * Calls Alma's PaymentEndpoint::create() at place-order time (or when the
+ * order page's payment form is submitted), persists the references on the
+ * Sylius Payment's details JSON and on an indexed AlmaPaymentReference, then
+ * replies with a Payum HttpRedirect that Sylius converts into a 302:
  *
- * On PaymentEndpointException (timeout, server error, etc.) the action
- * transitions the Sylius Payment to `failed` via the state machine, adds a
- * generic flash message and redirects the customer to the order summary page
- * where they can retry the payment (no rollback of the order, no technical
- * detail surfaced).
+ * - off-site flow: to the Alma hosted payment page;
+ * - In-Page flow: back to the order page, which opens the Alma modal for the
+ *   payment just created (cf. specs-sylius/in-page).
+ *
+ * An In-Page attempt always creates a new Alma payment, recorded alongside
+ * the earlier ones of the order; the Sylius Payment stays `new` so the order
+ * page can offer Alma or another method again.
+ *
+ * On PaymentEndpointException the customer is sent back to the order page
+ * with a generic flash message. Off-site, the Sylius Payment is transitioned
+ * to `failed` first; In-Page, it stays `new`.
  */
 final class AlmaCaptureAction implements ActionInterface
 {
@@ -47,6 +55,7 @@ final class AlmaCaptureAction implements ActionInterface
         private readonly UrlGeneratorInterface $urlGenerator,
         private readonly RequestStack $requestStack,
         private readonly EntityManagerInterface $entityManager,
+        private readonly AlmaCheckoutEligibilityProvider $eligibilityProvider,
         private readonly LoggerInterface $logger = new NullLogger(),
     ) {
     }
@@ -60,25 +69,54 @@ final class AlmaCaptureAction implements ActionInterface
             return;
         }
 
+        $order = $payment->getOrder();
+        if ($order !== null && AlreadyPaidOrder::is($order)) {
+            throw new HttpRedirect($this->urlGenerator->generate('sylius_shop_order_thank_you', [], UrlGeneratorInterface::ABSOLUTE_URL));
+        }
+
+        $channel = $order?->getChannel();
+        $configuration = $this->configurationResolver->getConfiguration($channel);
+        $unified = $configuration->isUnifiedPaymentButtonEnabled();
+        $inPage = $configuration->isInPageEnabled() && !$unified;
+
         $details = $payment->getDetails();
-        if (isset($details[AlmaPaymentDetailsKeys::PAYMENT_ID], $details[AlmaPaymentDetailsKeys::PAYMENT_URL])) {
-            // Already created — likely a retry of the same place-order. Redirect
-            // to the existing Alma hosted page without re-calling the API.
+        if (!$inPage && isset($details[AlmaPaymentDetailsKeys::PAYMENT_ID], $details[AlmaPaymentDetailsKeys::PAYMENT_URL])) {
+            // Already created off-site — likely a retry of the same place-order.
+            // Redirect to the existing Alma hosted page without re-calling the API.
             throw new HttpRedirect($details[AlmaPaymentDetailsKeys::PAYMENT_URL]);
         }
 
-        $planKey = $details[AlmaPaymentDetailsKeys::FEE_PLAN_KEY] ?? null;
-        if (!is_string($planKey) || $planKey === '') {
-            throw new \LogicException('Cannot create Alma payment: missing alma_fee_plan_key in payment details.');
+        $mode = $configuration->getApiMode();
+        $eligiblePlanKeys = [];
+
+        if ($unified) {
+            $planKey = null;
+            $eligiblePlanKeys = $this->eligiblePlanKeys($payment);
+            if ($eligiblePlanKeys === []) {
+                $this->logger->warning('alma.payment.no_eligible_plan', [
+                    'mode' => $mode,
+                    'order' => $order?->getId(),
+                    'amount' => $payment->getAmount(),
+                ]);
+                $this->handleCreateFailure($payment, false);
+
+                throw new \LogicException('Cannot create Alma payment: no plan is eligible for the order.');
+            }
+        } else {
+            $planKey = $details[AlmaPaymentDetailsKeys::FEE_PLAN_KEY] ?? null;
+            if (!is_string($planKey) || $planKey === '') {
+                throw new \LogicException('Cannot create Alma payment: missing alma_fee_plan_key in payment details.');
+            }
         }
 
-        $mode = $this->configurationResolver->getConfiguration()->getApiMode();
-        $apiKey = $this->configurationResolver->getApiKeyByMode($mode);
+        $apiKey = $this->configurationResolver->getApiKeyByMode($channel, $mode);
         if ($apiKey === null) {
             throw new \LogicException(sprintf('Cannot create Alma payment: active mode "%s" has no API key.', $mode));
         }
 
-        $almaRequest = $this->requestBuilder->build($payment, $planKey);
+        $almaRequest = $planKey === null
+            ? $this->requestBuilder->buildUnified($payment, $eligiblePlanKeys)
+            : $this->requestBuilder->build($payment, $planKey, $inPage);
 
         try {
             $almaPayment = $this->endpointFactory->make($apiKey, $mode)->create(
@@ -89,33 +127,45 @@ final class AlmaCaptureAction implements ActionInterface
         } catch (PaymentEndpointException $e) {
             $this->logger->error('alma.payment.create_failure', [
                 'mode' => $mode,
-                'order' => $payment->getOrder()?->getId(),
+                'order' => $order?->getId(),
                 'amount' => $payment->getAmount(),
+                'in_page' => $inPage,
                 'exception' => $e::class,
             ]);
 
-            $this->handleCreateFailure($payment);
+            $this->handleCreateFailure($payment, $inPage);
 
             throw $e;
         }
 
         $details[AlmaPaymentDetailsKeys::PAYMENT_ID] = $almaPayment->getId();
-        $details[AlmaPaymentDetailsKeys::PAYMENT_URL] = $almaPayment->getUrl();
         $details[AlmaPaymentDetailsKeys::MODE] = $mode;
-        // FEE_PLAN_KEY is already present from the C6 form submission, keep as-is
+        if ($inPage) {
+            unset($details[AlmaPaymentDetailsKeys::PAYMENT_URL]);
+        } else {
+            $details[AlmaPaymentDetailsKeys::PAYMENT_URL] = $almaPayment->getUrl();
+        }
+        if ($planKey === null) {
+            unset($details[AlmaPaymentDetailsKeys::FEE_PLAN_KEY]);
+        }
         $payment->setDetails($details);
 
-        // Double persistence : indexed AlmaPaymentReference for ORM-native lookup
-        // (pid → Payment + Order + persisted mode), in addition to the JSON
-        // payload above. Consumed by AlmaPaymentResolver for return/IPN/refund.
+        // Indexed lookup (pid → Payment + Order + persisted mode) consumed by
+        // AlmaPaymentResolver for return/IPN/refund, one row per Alma payment.
         $reference = new AlmaPaymentReference(
             $almaPayment->getId(),
             $mode,
             $payment,
             $payment->getOrder(),
+            $planKey,
+            $inPage ? AlmaPaymentReference::ORIGIN_IN_PAGE : AlmaPaymentReference::ORIGIN_OFF_SITE,
         );
         $this->entityManager->persist($reference);
         $this->entityManager->flush();
+
+        if ($inPage) {
+            throw new HttpRedirect($this->urlGenerator->generate('sylius_shop_order_show', ['tokenValue' => $order?->getTokenValue(), InPageModal::QUERY_PARAMETER => $almaPayment->getId()], UrlGeneratorInterface::ABSOLUTE_URL));
+        }
 
         throw new HttpRedirect($almaPayment->getUrl());
     }
@@ -126,15 +176,34 @@ final class AlmaCaptureAction implements ActionInterface
     }
 
     /**
-     * On Alma API failure: transition the Sylius Payment to `failed` (so the
-     * Sylius UI can offer a retry on the same order), add a generic flash
-     * message and redirect the customer to the order summary page. The order
-     * itself stays in its post-cart state — no rollback (cf. spec
-     * "Failure leaves the order in pending state").
+     * @return list<string>
      */
-    private function handleCreateFailure(SyliusPaymentInterface $payment): void
+    private function eligiblePlanKeys(SyliusPaymentInterface $payment): array
     {
-        if ($this->stateMachine->can($payment, PaymentTransitions::GRAPH, PaymentTransitions::TRANSITION_FAIL)) {
+        $order = $payment->getOrder();
+        if ($order === null) {
+            return [];
+        }
+
+        $planKeys = [];
+        foreach ($this->eligibilityProvider->getEligibilities($order) as $planKey => $eligibility) {
+            if ($eligibility->isEligible()) {
+                $planKeys[] = (string) $planKey;
+            }
+        }
+
+        return $planKeys;
+    }
+
+    /**
+     * The order itself stays in its post-cart state — no rollback (cf. spec
+     * "Failure leaves the order in pending state"). Off-site, the Sylius
+     * Payment is marked `failed` so the order page offers a retry; In-Page, it
+     * stays `new` so the customer retries on the same Sylius Payment.
+     */
+    private function handleCreateFailure(SyliusPaymentInterface $payment, bool $inPage): void
+    {
+        if (!$inPage && $this->stateMachine->can($payment, PaymentTransitions::GRAPH, PaymentTransitions::TRANSITION_FAIL)) {
             $this->stateMachine->apply($payment, PaymentTransitions::GRAPH, PaymentTransitions::TRANSITION_FAIL);
         }
 

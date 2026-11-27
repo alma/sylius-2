@@ -1,5 +1,7 @@
 alma_sylius:
     form:
         error:
-            payment_method_already_exists: Une méthode de paiement Alma existe déjà. Éditez la méthode existante au lieu d'en créer une seconde.
+            channel_already_has_alma_payment_method: 'Ces canaux utilisent déjà une autre méthode de paiement Alma : %channels%. Modifiez plutôt cette méthode de paiement, ou retirez ces canaux.'
             display_title_required: Le titre du groupe est obligatoire.
+            exclusion_message_required: Le message d'exclusion est obligatoire.
+            cart_widget_transition_delay: Le délai doit être un nombre entier supérieur ou égal à -1.

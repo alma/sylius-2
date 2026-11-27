@@ -26,8 +26,12 @@ use Sylius\Component\Core\Model\PaymentInterface as SyliusPaymentInterface;
  */
 #[ORM\Entity(repositoryClass: AlmaPaymentReferenceRepository::class)]
 #[ORM\Table(name: 'alma_payment_reference')]
+#[ORM\Index(name: 'IDX_alma_payment_reference_sylius_payment_id', columns: ['sylius_payment_id'])]
 class AlmaPaymentReference
 {
+    public const ORIGIN_OFF_SITE = 'online';
+    public const ORIGIN_IN_PAGE = 'online_in_page';
+
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column(type: Types::INTEGER)]
@@ -49,23 +53,37 @@ class AlmaPaymentReference
     // Using the interface lets Sylius's ResolveTargetEntityListener resolve it to the
     // app-configured concrete class at runtime.
     #[ORM\ManyToOne(targetEntity: SyliusPaymentInterface::class)]
-    #[ORM\JoinColumn(name: 'sylius_payment_id', referencedColumnName: 'id', unique: true, nullable: false, onDelete: 'CASCADE')]
+    // Not unique: every In-Page attempt of an order hangs on its single Sylius Payment.
+    #[ORM\JoinColumn(name: 'sylius_payment_id', referencedColumnName: 'id', nullable: false, onDelete: 'CASCADE')]
     private SyliusPaymentInterface $syliusPayment;
 
     #[ORM\ManyToOne(targetEntity: OrderInterface::class)]
     #[ORM\JoinColumn(name: 'sylius_order_id', referencedColumnName: 'id', nullable: false, onDelete: 'CASCADE')]
     private OrderInterface $syliusOrder;
 
+    #[ORM\Column(name: 'fee_plan_key', type: Types::STRING, length: 64, nullable: true)]
+    private ?string $feePlanKey;
+
+    #[ORM\Column(name: 'origin', type: Types::STRING, length: 32, options: ['default' => self::ORIGIN_OFF_SITE])]
+    private string $origin;
+
+    #[ORM\Column(name: 'paid_at', type: Types::DATETIME_IMMUTABLE, nullable: true)]
+    private ?\DateTimeImmutable $paidAt = null;
+
     public function __construct(
         string $almaPaymentId,
         string $almaMode,
         SyliusPaymentInterface $syliusPayment,
         OrderInterface $syliusOrder,
+        ?string $feePlanKey = null,
+        string $origin = self::ORIGIN_OFF_SITE,
     ) {
         $this->almaPaymentId = $almaPaymentId;
         $this->almaMode = $almaMode;
         $this->syliusPayment = $syliusPayment;
         $this->syliusOrder = $syliusOrder;
+        $this->feePlanKey = $feePlanKey;
+        $this->origin = $origin;
     }
 
     public function getId(): ?int
@@ -91,5 +109,44 @@ class AlmaPaymentReference
     public function getSyliusOrder(): OrderInterface
     {
         return $this->syliusOrder;
+    }
+
+    public function getFeePlanKey(): ?string
+    {
+        return $this->feePlanKey;
+    }
+
+    public function setFeePlanKey(string $feePlanKey): void
+    {
+        $this->feePlanKey = $feePlanKey;
+    }
+
+    public function getOrigin(): string
+    {
+        return $this->origin;
+    }
+
+    public function isInPage(): bool
+    {
+        return $this->origin === self::ORIGIN_IN_PAGE;
+    }
+
+    public function getPaidAt(): ?\DateTimeImmutable
+    {
+        return $this->paidAt;
+    }
+
+    public function isPaid(): bool
+    {
+        return $this->paidAt !== null;
+    }
+
+    /**
+     * Keeps the first date Alma reported the payment paid: replays of the
+     * return route or the IPN do not move it.
+     */
+    public function markPaid(\DateTimeImmutable $paidAt): void
+    {
+        $this->paidAt ??= $paidAt;
     }
 }

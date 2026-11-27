@@ -1,0 +1,6 @@
+sylius_twig_hooks:
+    hooks:
+        'sylius_shop.order.show.content':
+            alma_in_page_modal:
+                template: '@AlmaSyliusPlugin/Shop/order/in_page_modal.html.twig'
+                priority: -100

@@ -5,8 +5,7 @@ declare(strict_types=1);
 namespace Alma\Sylius\Validator\Constraint;
 
 use Alma\Sylius\Resolver\AlmaPaymentMethodResolver;
-use Sylius\Component\Payment\Model\GatewayConfigInterface;
-use Sylius\Component\Payment\Model\PaymentMethodInterface;
+use Sylius\Component\Core\Model\PaymentMethodInterface;
 use Sylius\Component\Payment\Repository\PaymentMethodRepositoryInterface;
 use Symfony\Component\Validator\Constraint;
 use Symfony\Component\Validator\ConstraintValidator;
@@ -34,36 +33,49 @@ final class UniqueAlmaPaymentMethodValidator extends ConstraintValidator
             throw new UnexpectedValueException($value, PaymentMethodInterface::class);
         }
 
-        $gatewayConfig = $value->getGatewayConfig();
-        if (!$gatewayConfig instanceof GatewayConfigInterface) {
+        if (!$this->isAlma($value)) {
             return;
         }
 
-        if ($gatewayConfig->getFactoryName() !== AlmaPaymentMethodResolver::GATEWAY_FACTORY_NAME) {
+        $takenChannelNames = [];
+        foreach ($this->otherAlmaPaymentMethods($value) as $other) {
+            foreach ($value->getChannels() as $channel) {
+                if ($other->hasChannel($channel)) {
+                    $takenChannelNames[$channel->getCode()] = $channel->getName() ?? $channel->getCode();
+                }
+            }
+        }
+
+        if ($takenChannelNames === []) {
             return;
         }
 
-        $currentId = $value->getId();
+        // Sylius' admin channels field renders no error of its own: a form-level error is shown at the top.
+        $this->context->buildViolation($constraint->message)
+            ->setParameter('%channels%', implode(', ', $takenChannelNames))
+            ->addViolation();
+    }
 
+    /**
+     * @return iterable<PaymentMethodInterface>
+     */
+    private function otherAlmaPaymentMethods(PaymentMethodInterface $paymentMethod): iterable
+    {
         foreach ($this->paymentMethodRepository->findAll() as $existing) {
-            if (!$existing instanceof PaymentMethodInterface) {
+            if (!$existing instanceof PaymentMethodInterface || $existing === $paymentMethod || !$this->isAlma($existing)) {
                 continue;
             }
 
-            if ($existing->getId() !== null && $existing->getId() === $currentId) {
+            if ($existing->getId() !== null && $existing->getId() === $paymentMethod->getId()) {
                 continue;
             }
 
-            $existingGatewayConfig = $existing->getGatewayConfig();
-            if (!$existingGatewayConfig instanceof GatewayConfigInterface) {
-                continue;
-            }
-
-            if ($existingGatewayConfig->getFactoryName() === AlmaPaymentMethodResolver::GATEWAY_FACTORY_NAME) {
-                $this->context->buildViolation($constraint->message)->addViolation();
-
-                return;
-            }
+            yield $existing;
         }
+    }
+
+    private function isAlma(PaymentMethodInterface $paymentMethod): bool
+    {
+        return $paymentMethod->getGatewayConfig()?->getFactoryName() === AlmaPaymentMethodResolver::GATEWAY_FACTORY_NAME;
     }
 }

@@ -27,6 +27,23 @@
     </div>
 </div>
 
+<div class="accordion mb-3" id="alma-payment-flow-accordion">
+    <div class="accordion-item">
+        <h2 class="accordion-header">
+            <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#alma-payment-flow" aria-expanded="true" aria-controls="alma-payment-flow">
+                {{ 'alma_sylius.form.configuration.payment_flow.title'|trans }}
+            </button>
+        </h2>
+        <div id="alma-payment-flow" class="accordion-collapse collapse show">
+            <div class="accordion-body">
+                <p class="text-muted small">{{ 'alma_sylius.form.configuration.payment_flow.description'|trans }}</p>
+                {{ form_row(form.in_page_enabled) }}
+                {{ form_row(form.unified_payment_button_enabled) }}
+            </div>
+        </div>
+    </div>
+</div>
+
 {# Only plans whose dynamic fields were built. On a rejected-save re-render
    the SUBMIT listener restores the persisted fee_plans into the data while
    PRE_SET_DATA built fields for the freshly-refreshed list only — when the
@@ -108,6 +125,15 @@
                 <p class="text-muted small">{{ 'alma_sylius.form.configuration.display.widget.description'|trans }}</p>
                 {{ form_row(form.product_widget_enabled) }}
 
+                <h3 class="h4 mb-1 mt-4">{{ 'alma_sylius.form.configuration.display.cart_widget.title'|trans }}</h3>
+                <p class="text-muted small">{{ 'alma_sylius.form.configuration.display.cart_widget.description'|trans }}</p>
+                {{ form_row(form.cart_widget_enabled) }}
+                {{ form_row(form.cart_widget_position) }}
+                {{ form_row(form.cart_widget_show_if_not_eligible) }}
+                {{ form_row(form.cart_widget_monochrome) }}
+                {{ form_row(form.cart_widget_hide_border) }}
+                {{ form_row(form.cart_widget_transition_delay) }}
+
                 <h3 class="h4 mb-1 mt-4">{{ 'alma_sylius.form.configuration.display.checkout.title'|trans }}</h3>
                 <p class="text-muted small">{{ 'alma_sylius.form.configuration.display.checkout.description'|trans }}</p>
                 <table class="table mt-3 mb-0">
@@ -139,6 +165,44 @@
                                     </td>
                                 </tr>
                             {% endfor %}
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="accordion mb-3" id="alma-exclusion-accordion">
+    <div class="accordion-item">
+        <h2 class="accordion-header">
+            <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#alma-exclusion" aria-expanded="true" aria-controls="alma-exclusion">
+                {{ 'alma_sylius.form.configuration.exclusion.section_title'|trans }}
+            </button>
+        </h2>
+        <div id="alma-exclusion" class="accordion-collapse collapse show">
+            <div class="accordion-body">
+                <p class="text-muted small">{{ 'alma_sylius.form.configuration.exclusion.terms'|trans }}</p>
+                {{ form_row(form.excluded_taxon_codes) }}
+
+                <h3 class="h4 mb-1 mt-4">{{ 'alma_sylius.form.configuration.exclusion.message.title'|trans }}</h3>
+                <p class="text-muted small">{{ 'alma_sylius.form.configuration.exclusion.message.description'|trans }}</p>
+                <table class="table mt-3 mb-0">
+                    <thead>
+                        <tr>
+                            <th style="width: 22%">{{ 'alma_sylius.form.configuration.exclusion.column.locale'|trans }}</th>
+                            <th>{{ 'alma_sylius.form.configuration.exclusion.column.message'|trans }}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for locale in form.vars.display_locales %}
+                            <tr>
+                                <td>{{ locale }}</td>
+                                <td>
+                                    {{ form_widget(form['exclusion_message__' ~ locale], {'attr': {'class': 'form-control'}}) }}
+                                    {{ form_errors(form['exclusion_message__' ~ locale]) }}
+                                </td>
+                            </tr>
                         {% endfor %}
                     </tbody>
                 </table>

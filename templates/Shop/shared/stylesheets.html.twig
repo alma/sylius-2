@@ -1,1 +1,3 @@
-<link rel="stylesheet" href="{{ asset('bundles/almasyliusplugin/css/checkout.css') }}">
+{% if alma_storefront_visible() %}
+    <link rel="stylesheet" href="{{ asset('bundles/almasyliusplugin/css/checkout.css') }}">
+{% endif %}

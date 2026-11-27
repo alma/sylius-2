@@ -20,10 +20,28 @@ services:
 
     Alma\Sylius\Checkout\FeePlanGrouper: ~
 
+    Alma\Sylius\InPage\InPageSettingsProvider: ~
+
+    Alma\Sylius\InPage\OrderAlmaPaymentsProvider: ~
+
     Alma\Sylius\Checkout\GroupDisplayTextsResolver: ~
+
+    Alma\Sylius\Exclusion\:
+        resource: '../src/Exclusion/'
+
+    Alma\Sylius\Form\Extension\AlmaGatewayConfigurationTypeExtension:
+        arguments:
+            $taxonsToCodesTransformer: '@sylius.form.type.data_transformer.taxons_to_codes'
 
     Alma\Sylius\ProductWidget\:
         resource: '../src/ProductWidget/'
+
+    Alma\Sylius\CartWidget\AlmaCartWidgetConfigProvider:
+        arguments:
+            $cartContext: '@sylius.context.cart'
+
+    Alma\Sylius\Widget\:
+        resource: '../src/Widget/'
 
     Alma\Sylius\Api\:
         resource: '../src/Api/'
@@ -33,6 +51,10 @@ services:
     Alma\Sylius\Api\EligibilityEndpointFactoryInterface: '@Alma\Sylius\Api\EligibilityEndpointFactory'
 
     Alma\Sylius\Api\PaymentEndpointFactoryInterface: '@Alma\Sylius\Api\PaymentEndpointFactory'
+
+    Alma\Sylius\Api\OrderEndpointFactoryInterface: '@Alma\Sylius\Api\OrderEndpointFactory'
+
+    Alma\Sylius\Api\ConfigurationEndpointFactoryInterface: '@Alma\Sylius\Api\ConfigurationEndpointFactory'
 
     Alma\Sylius\Payment\:
         resource: '../src/Payment/'
@@ -86,6 +108,10 @@ services:
     Alma\Sylius\Resolver\:
         resource: '../src/Resolver/'
 
+    Alma\Sylius\Resolver\AlmaStorefrontVisibility:
+        arguments:
+            $channelContext: '@sylius.context.channel'
+
     Alma\Sylius\Resolver\AlmaPaymentMethodResolver:
         arguments:
             $paymentMethodRepository: '@sylius.repository.payment_method'
@@ -112,6 +138,12 @@ services:
         arguments:
             $appSecret: '%kernel.secret%'
 
+    Alma\Sylius\Security\BackOfficeUserDetector:
+        arguments:
+            $firewallMap: '@security.firewall.map'
+            $adminUserRepository: '@sylius.repository.admin_user'
+            $adminFirewallContext: '%alma_sylius.admin_firewall_context%'
+
     Alma\Sylius\EventListener\AlmaGatewayConfigCryptoListener:
         tags:
             - { name: doctrine.event_listener, event: postLoad }
@@ -120,9 +152,52 @@ services:
             - { name: doctrine.event_listener, event: postPersist }
             - { name: doctrine.event_listener, event: postUpdate }
 
+    Alma\Sylius\EventListener\BackOfficeUserPrivateResponseListener:
+        tags:
+            - { name: kernel.event_listener, event: kernel.response }
+
     Alma\Sylius\EventListener\AlmaPaymentRefundListener:
         tags:
             - { name: kernel.event_listener, event: 'workflow.sylius_payment.transition.refund' }
+
+    # After Sylius' own listener (priority 100), which gives the order a new payment.
+    Alma\Sylius\EventListener\AlmaPaidAttemptCompletionListener:
+        tags:
+            - { name: kernel.event_listener, event: 'workflow.sylius_payment.completed.fail', priority: 0 }
+            - { name: kernel.event_listener, event: 'workflow.sylius_payment.completed.cancel', priority: 0 }
+
+    Alma\Sylius\OrderInformation\:
+        resource: '../src/OrderInformation/'
+
+    Alma\Sylius\Dispatch\AfterCommitDispatcher:
+        tags:
+            - { name: doctrine.event_listener, event: postFlush }
+            - { name: kernel.event_listener, event: kernel.terminate, method: dispatch }
+            - { name: kernel.event_listener, event: console.terminate, method: dispatch }
+            # Before Doctrine's listener (priority 0), which clears the entity manager.
+            - { name: kernel.event_listener, event: Symfony\Component\Messenger\Event\WorkerMessageHandledEvent, method: onMessageHandled, priority: 10 }
+            - { name: kernel.event_listener, event: Symfony\Component\Messenger\Event\WorkerMessageFailedEvent, method: onMessageFailed }
+
+    Alma\Sylius\EventListener\OrderInformationTransitionListener:
+        tags:
+            - { name: kernel.event_listener, event: 'workflow.sylius_order.completed', method: onOrderTransition }
+            - { name: kernel.event_listener, event: 'workflow.sylius_order_shipping.completed', method: onOrderShippingTransition }
+            - { name: kernel.event_listener, event: 'workflow.sylius_shipment.completed.ship', method: onShipmentShipped }
+
+    Alma\Sylius\BusinessEvents\:
+        resource: '../src/BusinessEvents/'
+
+    Alma\Sylius\Repository\AlmaBusinessEventRepository:
+        tags: [doctrine.repository_service]
+
+    # After Sylius' own listener (priority 0), which adds the item to the cart.
+    Alma\Sylius\BusinessEvents\CartItemAddListener:
+        tags:
+            - { name: kernel.event_listener, event: sylius.cart_item_add, method: onCartItemAdd, priority: -10 }
+
+    Alma\Sylius\BusinessEvents\OrderPaidListener:
+        tags:
+            - { name: kernel.event_listener, event: 'workflow.sylius_order_payment.completed.pay', method: onOrderPaid }
 
     Alma\Sylius\Validator\Constraint\UniqueAlmaPaymentMethodValidator:
         arguments:
@@ -130,8 +205,26 @@ services:
         tags:
             - { name: validator.constraint_validator }
 
-    Alma\Sylius\Twig\AlmaPaymentGatewaysDecorator:
-        decorates: sylius_admin.twig.extension.payment_method
+    Alma\Sylius\CmsDataExport\:
+        resource: '../src/CmsDataExport/'
+
+    Alma\Sylius\CmsDataExport\CmsFeaturesProvider:
         arguments:
-            $inner: '@.inner'
             $paymentMethodRepository: '@sylius.repository.payment_method'
+            $channelRepository: '@sylius.repository.channel'
+            $taxonRepository: '@sylius.repository.taxon'
+
+    Alma\Sylius\Controller\CmsDataExport\CmsDataExportController:
+        public: true
+        arguments:
+            $paymentMethodRepository: '@sylius.repository.payment_method'
+        tags: ['controller.service_arguments']
+
+    Alma\Sylius\EventListener\CmsDataExportDeclarationListener:
+        tags:
+            - { name: kernel.event_listener, event: sylius.payment_method.post_create }
+            - { name: kernel.event_listener, event: sylius.payment_method.post_update }
+
+    Alma\Sylius\Factory\AlmaPaymentMethodFactory:
+        decorates: sylius.custom_factory.payment_method
+        arguments: ['@.inner']

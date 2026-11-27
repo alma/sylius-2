@@ -1,0 +1,18 @@
+{% set widget = alma_cart_widget(hookable_metadata.configuration.position) %}
+{% if widget is not null %}
+    <link rel="stylesheet" href="{{ alma_widget_asset('css') }}">
+    {% if widget.exclusionMessage is not null %}
+        {% include '@AlmaSyliusPlugin/Shop/shared/exclusion_message.html.twig' with {class: 'alma-cart-exclusion', message: widget.exclusionMessage} only %}
+    {% endif %}
+    {# Same Live Component pattern as the product widget: the ignored
+       container keeps the client-rendered widget across cart re-renders, the
+       JSON sibling is morphed with the new cart total. An excluded cart emits
+       no JSON, so the widget is never initialized, but keeps the scripts for
+       when the excluded product is removed. #}
+    <div id="alma-cart-widget" class="my-3" data-live-ignore></div>
+    {% if widget.config is not null %}
+        <script type="application/json" id="alma-cart-widget-config">{{ widget.config|json_encode(constant('JSON_HEX_TAG'))|raw }}</script>
+    {% endif %}
+    <script src="{{ alma_widget_asset('js') }}" defer></script>
+    <script src="{{ asset('bundles/almasyliusplugin/js/cart-widget.js') }}" defer></script>
+{% endif %}
